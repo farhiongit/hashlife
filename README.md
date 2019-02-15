@@ -14,7 +14,9 @@ It can handle almost infinite universe
 (up to 10^77^ x 10^77^, using a lightweight implementation of big integers coded on 256 bits, in `bitl.h` and `bitl.c`.)
 
 This one is a tough one, so, hold on !
+
 The code `hgolbi.c` is commented, and refers to excerpts from the Gosper's paper.
+
 It makes use of template lists and sets, which files can be found [here](https://github.com/farhiongit/Ctemplates).
 
 # General scheme
