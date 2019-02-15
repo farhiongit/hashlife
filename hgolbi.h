@@ -1,7 +1,6 @@
 #ifndef __HGOLBI_H__
 #  define __HGOLBI_H__
 
-#  include "set.h"
 #  include "bitl.h"
 
 // Abstract data type Universe.
