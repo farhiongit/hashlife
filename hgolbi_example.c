@@ -18,7 +18,7 @@ do { \
   } \
 } while(0)
 
-static int
+static void
 preaction (Universe * universe, SpaceTime st, void * arg)
 {
   (void) arg;
@@ -27,19 +27,17 @@ preaction (Universe * universe, SpaceTime st, void * arg)
           st.space.window.NWvertex.x, st.space.window.SEvertex.x,
           st.space.window.NWvertex.y, st.space.window.SEvertex.y,
           st.time.instant);
-  return EXIT_SUCCESS;
 }
 
-static int
+static void
 extractor (Universe * universe, SpaceTime st, intbig_t x, intbig_t y, void *arg)
 {
   (void) arg;
   (void) universe;
   printf ("- cell at position (%+'12V, %+'12V) at time %'12U\n", x, y, st.time.instant);
-  return EXIT_SUCCESS;
 }
 
-static int
+static void
 postaction (Universe * universe, SpaceTime st, uintbig_t numcells, void *arg)
 {
   (void) arg;
@@ -48,20 +46,7 @@ postaction (Universe * universe, SpaceTime st, uintbig_t numcells, void *arg)
           numcells, st.space.window.NWvertex.x, st.space.window.SEvertex.x,
           st.space.window.NWvertex.y, st.space.window.SEvertex.y,
           st.time.instant);
-  return EXIT_SUCCESS;
 }
-
-int
-main (int argc, char *const argv[])
-{
-  setlocale (LC_ALL, "");
-
-  Explorer e = { 0 };
-  e.extractor.preaction = preaction;
-  e.extractor.foreach = extractor;
-  e.extractor.postaction = postaction;
-  Universe *pUniverse = universe_create ();
-  IFNOTEXIT (pUniverse, "Memory allocation error.");
 
 #define EXPLORE(mytime)\
   do {\
@@ -69,6 +54,9 @@ main (int argc, char *const argv[])
     universe_explore (pUniverse, e);\
   } while(0)
 
+static void
+TU (Universe *pUniverse, Explorer e)
+{
 #ifndef DEBUG
   // Glider
   universe_cell_set (pUniverse, LL_TO_LLL (0), LL_TO_LLL (0));
@@ -92,9 +80,19 @@ main (int argc, char *const argv[])
   EXPLORE (ULL_TO_ULLL (ULONG_MAX));
   universe_reinitialize (pUniverse);
 #endif
+}
 
-  e.spacetime.space.window.NWvertex.x = e.spacetime.space.window.NWvertex.y = INTBIG_MIN;
-  e.spacetime.space.window.SEvertex.x = e.spacetime.space.window.SEvertex.y = INTBIG_MAX;
+int
+main (int argc, char *const argv[])
+{
+  setlocale (LC_ALL, "");
+
+  Explorer e = { 0 };
+  e.extractor.preaction = preaction;
+  e.extractor.foreach = extractor;
+  e.extractor.postaction = postaction;
+  Universe *pUniverse = universe_create ();
+  IFNOTEXIT (pUniverse, "Memory allocation error.");
 
   // Parsing command line, e.g.: ./hgolbi_example -t1/2 -x-9/10,3/4 -y-5/6,7/8 </dev/null
   uintbig_t t = UINTBIG_ZERO;
@@ -108,10 +106,13 @@ main (int argc, char *const argv[])
   int opt, sign;
   const char *num_sep = "_";
   const char *coord_sep = ",";
-  const char *optstring = ":t:x:y:";
+  const char *optstring = ":Ut:x:y:";
   while ((opt = getopt (argc, argv, optstring)) != -1)
     switch (opt)
     {
+      case 'U':
+        TU (pUniverse, e);
+        break;
       case 't':
         for (t = UINTBIG_ZERO, ptr = optarg; (ptr = strtok_r (ptr, num_sep, &ntokptr)); ptr = 0)
         {
@@ -183,12 +184,12 @@ main (int argc, char *const argv[])
     }
   }
 
-  universe_RLE_readfile (pUniverse, f, INTBIG_ZERO, INTBIG_ZERO, 1);
+  printf ("%'U cells have been read from the RLE pattern.\n", universe_RLE_readfile (pUniverse, f, INTBIG_ZERO, INTBIG_ZERO, 1));
   fclose (f);
-  printf ("\n");
 
   EXPLORE (UINTBIG_ZERO);
-  EXPLORE (t);
+  if (!uintbig_is_zero (t))
+    EXPLORE (t);
 
   universe_destroy (pUniverse);
   printf ("Done.\n");

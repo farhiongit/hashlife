@@ -116,6 +116,7 @@ macrocell_lt (MacrocellId a, MacrocellId b)
   return 0;
 }
 
+// [GOSPER] "At the bottom (...) are the 2^0 by 2^0 (i.e. 1 by 1) cells, of which there are at most two, since Life is a two state automaton"
 // ON is a static leaf, shared between all universes.
 #define ON (&_on)
 static struct sMacrocell _on = { {{1}}, {{0}}, {0}, 0 };     // A leaf (cell is on)
@@ -317,7 +318,7 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) * set)
   {
     // If the macrocell is not an empty region and is not registered yet, it must be registered in the set.
     // Add it from the path into the set of patterns.
-    m->result = QUERY;         // TODO: is this necessary ?
+    m->result = QUERY;          // Makes sure that an extraneous result is not registered.
     m->nb_instances = ULL_TO_ULLL (1);
     m->population = macrocell_get_population (m, 1);
     SET_ADD (set, m);           // register the macrocell in the ordered set.
@@ -459,7 +460,8 @@ universe_get_RESULT (Universe * pUniverse, MacrocellId m, unsigned int height)
 
   l0 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, height));
   ASSERT (l0 && l0->macrocells);
-  m = macrocell_patternify (m, l0->macrocells); // m should be registered already.
+  ASSERT (m == macrocell_patternify (m, l0->macrocells)); // m should have been registered already.
+  m = macrocell_patternify (m, l0->macrocells);
   // [GOSPER] "If the queried macro-cell already knows its RESULT (from having computed it previously), it just returns it."
   if (m->result != QUERY)      // If the RESULT was already computed, return it.
     return m->result;
@@ -546,7 +548,7 @@ universe_get_RESULT (Universe * pUniverse, MacrocellId m, unsigned int height)
     for (Quadrant u = 0; u < NB_QUADRANTS; u++)
       if ((result = universe_get_RESULT (pUniverse, m->quadrant[u], height - 1)))     // height - 2
         for (Quadrant i = 0; i < NB_QUADRANTS; i++)
-          *unit_1_4[u].cell[i] = result->quadrant[i];
+          *unit_1_4[u].cell[i] = result->quadrant[i];  // quadrants of result are already paternified.
 
     /* 5 to 9 */
     // [GOSPER] "To excavate these dikes, five artificial, shifted "quadrants" must be constructed from quadrants' quadrants,
@@ -637,14 +639,15 @@ universe_get_RESULT (Universe * pUniverse, MacrocellId m, unsigned int height)
     /* 5 to 9 */
     for (unsigned int u = 0; u < 5; u++)
     {
+      // The quadrants of mtemp_5_9[u] have been paternified already.
       mtemp_5_9[u] = macrocell_patternify (mtemp_5_9[u], l1->macrocells);
 
       if ((result = universe_get_RESULT (pUniverse, mtemp_5_9[u], height - 1)))       // height - 2
         for (Quadrant i = 0; i < NB_QUADRANTS; i++)
-          *unit_5_9[u].cell[i] = result->quadrant[i];
+          *unit_5_9[u].cell[i] = result->quadrant[i];  // quadrants of result are already paternified.
     }
 
-    /* Therefore, we have 36 cells h, S/8 generations ahead of m.
+    /* Therefore, we have 36 already paternified cells (h), S/8 generations ahead of m.
        ........
        .hhhhhh.
        .hhhhhh.
@@ -713,16 +716,15 @@ universe_get_RESULT (Universe * pUniverse, MacrocellId m, unsigned int height)
     for (Quadrant u = 0; u < NB_QUADRANTS; u++)
     {
       MacrocellId mtemp = calloc (1, sizeof (*mtemp));
-      MacrocellId qtemp[NB_QUADRANTS];
       for (Quadrant j = 0; j < NB_QUADRANTS; j++)
       {
-        qtemp[j] = calloc (1, sizeof (*qtemp[j]));
+        MacrocellId qtemp = calloc (1, sizeof (*qtemp));
         for (Quadrant k = 0; k < NB_QUADRANTS; k++)
-          qtemp[j]->quadrant[k] = unit_10_13[u].cell[j][k];
-        mtemp->quadrant[j] = macrocell_patternify (qtemp[j], l2->macrocells);
+          qtemp->quadrant[k] = unit_10_13[u].cell[j][k];      // Quadrants of qtemp are already paternified.
+        mtemp->quadrant[j] = macrocell_patternify (qtemp, l2->macrocells);   // Quadrants of mtemp are paternified.
       }
-      mtemp = macrocell_patternify (mtemp, l1->macrocells);
-      result->quadrant[u] = universe_get_RESULT (pUniverse, mtemp, height - 1);       // height - 2
+      mtemp = macrocell_patternify (mtemp, l1->macrocells);   // mtemp is paternified.
+      result->quadrant[u] = universe_get_RESULT (pUniverse, mtemp, height - 1);       // Quadrants of result are paternified, at height - 2
     }
 
     /* Done: hresult H, half the size of m, is S/4 generations ahead of m:
@@ -737,7 +739,7 @@ universe_get_RESULT (Universe * pUniverse, MacrocellId m, unsigned int height)
      */
   }                             // if (height != 2)
 
-  // Register hresult (suppose here that m has already been registered as a pattern)
+  // Register result (suppose here that m has already been registered as a pattern)
   return m->result = macrocell_patternify (result, l1->macrocells);
 }
 
@@ -851,7 +853,7 @@ universe_cell_accessor (Universe * pUniverse, intbig_t sx, intbig_t sy, Macrocel
   uintbig_t y = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), sy);
   MacrocellId oldleaf = 0;
   ASSERT (!leaf || (!leaf->quadrant[NW] && !leaf->quadrant[NE] && !leaf->quadrant[SW] && !leaf->quadrant[SE])); // leaf is a leaf
-  if ((leaf == 0 || leaf == QUERY) && !universe_contains (pUniverse, sx, sy))
+  if ((leaf == 0 || leaf == QUERY) && !universe_contains (pUniverse, sx, sy))   // Cannot remove a cell from or query an unexisting position
     return 0;
   // Insert the cell in the tree
   else if (pUniverse->root == 0)
@@ -898,7 +900,7 @@ universe_cell_accessor (Universe * pUniverse, intbig_t sx, intbig_t sy, Macrocel
     struct
     {
       MacrocellId oldmc, newmc;
-      Quadrant q;               // quadrant q of oldmc was modified
+      Quadrant q;               // quadrant q of oldmc which is modified
     } *path = calloc (pUniverse->height, sizeof (*path));
     // Top to bottom : create quadrants down to the position (x, y), starting from the root at the top.
     MacrocellId m = pUniverse->root;    // (*) At step 0, the macrocell m is the root. It is unique by construction.
@@ -956,7 +958,7 @@ universe_cell_accessor (Universe * pUniverse, intbig_t sx, intbig_t sy, Macrocel
 
       // [GOSPER] "a macrocell is never created if one having the same quadrants already exists.
       //           This applies recursively to the quadrants."
-      // Check if the macrocell newmc has terminations (non empty quadrants).
+      // Register the new macrocell newmc (if necessary).
       if (h < pUniverse->height)
         path[h].newmc->quadrant[path[h].q] = macrocell_patternify (path[h - 1].newmc, l->macrocells);
       else
@@ -1129,8 +1131,8 @@ print_cell (SNODE (XYPos) * n, void *arg)
   XYPos pos = *SNODE_KEY (n);
   Explorer *explorer = arg;
   if (explorer->extractor.foreach)
-    return explorer->extractor.foreach (explorer->universe, explorer->spacetime, pos.x, pos.y, explorer->extractor.context);
-  return EXIT_FAILURE;
+    explorer->extractor.foreach (explorer->universe, explorer->spacetime, pos.x, pos.y, explorer->extractor.context);
+  return EXIT_SUCCESS;
 }
 
 // [GOSPER] "To SHOW the intersection of such a slab with the spacetime, teach the macro-cell classes to check
@@ -1193,7 +1195,7 @@ universe_show_RESULT (Universe * pUniverse, MacrocellId m, SpaceTimeRegion offse
     {
       // For debugging purpose only.
       show_overlapping (offset.height - 1, pE->spacetime.time.instant, pE->spacetime.time.instant,
-                        uintbig_add (offset.xmin, quarter_size), uintbig_add (offset.ymin, quarter_size), pE->space.window);
+                        uintbig_add (offset.xmin, quarter_size), uintbig_add (offset.ymin, quarter_size), pE->spacetime.space.window);
       macrocell_get_cells_in_window (m->result, offset.height - 1,
                                      uintbig_add (offset.xmin, quarter_size), uintbig_add (offset.ymin, quarter_size),
                                      pE->spacetime.space.window, found_cells);
@@ -1202,7 +1204,7 @@ universe_show_RESULT (Universe * pUniverse, MacrocellId m, SpaceTimeRegion offse
   }
 
   // For debugging purpose only.
-  show_overlapping (offset.height, offset.tbase, pE->time.instant, offset.xmin, offset.ymin, pE->space.window);
+  show_overlapping (offset.height, offset.tbase, pE->spacetime.time.instant, offset.xmin, offset.ymin, pE->spacetime.space.window);
 
   // Explore RESULT, S/4 generations ahead of m, where S is the size of m.
   /* Macrocell m (.), of size S  ->  RESULT (H), of size S/2, S/4 generations ahead of m.
@@ -1551,7 +1553,7 @@ universe_explore (Universe * pUniverse, Explorer explorer)
       universe_expand (pUniverse);
 
     uintbig_t quarter_size = uintbig_sl (ULL_TO_ULLL (1), pUniverse->height - 2);
-    ASSERT (uintbig_cmp (explorer.time.instant, quarter_size) <= 0);
+    ASSERT (uintbig_cmp (explorer.spacetime.time.instant, quarter_size) <= 0);
 
     // Compute the forecast of the whole universe and its reachable neighborhood (ie within reachable distance at speed of light).
     // Compute 4 RESULTs, S/4 generations ahead of m, where S is the size of m.

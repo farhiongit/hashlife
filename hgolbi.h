@@ -34,9 +34,9 @@ typedef struct
 // An extractor.
 typedef struct
 {
-  int (*preaction) (Universe *, SpaceTime st, void * context);
-  int (*foreach) (Universe *, SpaceTime st, intbig_t x, intbig_t y, void * context);
-  int (*postaction) (Universe *, SpaceTime st, uintbig_t num_cells, void * context);
+  void (*preaction) (Universe *, SpaceTime st, void * context);
+  void (*foreach) (Universe *, SpaceTime st, intbig_t x, intbig_t y, void * context);
+  void (*postaction) (Universe *, SpaceTime st, uintbig_t num_cells, void * context);
   void *context;         // For user purpose.
 } Extractor;
 // An explorer of universe in space and time.
@@ -47,7 +47,7 @@ typedef struct
   Universe *universe;    // Reserved, do not use.
 } Explorer;
 
-// Create a universe.
+// Create a universe and return the pointer to it.
 // Calls xintbig_printf_init () for convenience.
 Universe *universe_create (void);
 
@@ -65,19 +65,24 @@ void universe_cell_set (Universe * pUniverse, intbig_t x, intbig_t y);
 // x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
 void universe_cell_unset (Universe * pUniverse, intbig_t x, intbig_t y);
 
-// Check if a cell is set at position (x, y) in universe.
+// Check if a cell is set (returns 1) or unset (returns 0) at position (x, y) in universe.
 // x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
 int universe_cell_is_set (Universe * pUniverse, intbig_t x, intbig_t y);
 
 // Initialize the universe from a RLE file f.
+// Returns the number of cells initialized in the universe.
+// x and y are the coordinates of the North-West corner of the universe.
+// x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
+// header should be 1 if the RLE contains a header line (possibly precedeed by commented lines starting with #), 0 otherwise.
 uintbig_t universe_RLE_readfile (Universe * pUniverse, FILE * f, intbig_t x, intbig_t y, int header);
 
-// Explore all cells at generation explorer.time.instant in window explorer.space.window.
-// The callback functions of explorer.extractor are :
-// - preaction is called before exploration with context as argument.
-// - foreach is called for each found cell, with its position (x and y) and context as arguments.
-// - postaction is called after exploration with the number of cells and context as arguments.
-// Each of these functions have pUniverse and explorer.spacetime as first arguments.
+// Explore all cells in window explorer.space.window at generation explorer.time.instant.
+// Returns the number of cells found in the window.
+// The callback functions of explorer.extractor are used as following :
+// - preaction is called before exploration.
+// - foreach is called for each found cell, with its position (x and y) as 3rd and 4th argument.
+// - postaction is called after exploration with the number of found cells as 3rd argument.
+// Each of these functions have pUniverse and explorer.spacetime as first two arguments and explorer.extractor.context as last argument.
 uintbig_t universe_explore (Universe * pUniverse, Explorer explorer);
 
 #endif

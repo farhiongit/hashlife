@@ -17,7 +17,7 @@ infos:
 	cloc --by-file hgolbi.h hgolbi.c bitl.h bitl.c
 	nm -g --defined-only ./hgolbi.o
 	nm -g --defined-only ./bitl.o
-	time ./hgolbi_example -t1_2 -x-9_10,3_4 -y-5_6,7_8 </dev/null
+	time ./hgolbi_example -U -t1_2 -x-9_10,3_4 -y-5_6,7_8 </dev/null
 
 bitl.o: bitl.c bitl.h
 
