@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <limits.h>
 #include "hgolbi.h"
-#include "bitl.h"
 
 #define IFNOTEXIT(cond, ...) \
 do { \

@@ -88,17 +88,17 @@ Explorer
 ||\ space
 || \ window, region in space to explore
 || |\ NWvertex
-|| | \ x, type intbig_t
-|| | \ y, type intbig_t
+|| | \ x, type: intbig_t
+|| | \ y, type: intbig_t
 ||  \ SEvertex
-||   \ x, type intbig_t
-||   \ y, type intbig_t
+||   \ x, type: intbig_t
+||   \ y, type: intbig_t
 | \ time, instant in time to explore
 |  \ instant, type uintbig_t
  \ extractor, actions to perform
-  \ preaction, type int (*) (void *)
-  \ foreach, type int (*) (intbig_t x, intbig_t y, void *)
-  \ postaction, type int (*) (void *)
+  \ preaction, type: void (*) (Universe *, SpaceTime, void *)
+  \ foreach, type: void (*) (Universe *, SpaceTime, intbig_t, intbig_t, void *)
+  \ postaction, type: void (*) (Universe *, SpaceTime, uintbig_t, void *)
   \ context, type void *
 ```
 
@@ -144,8 +144,34 @@ Macrocell
 - `macrocell_fetch_pattern`
 - `macrocell_patternify`
 
+# Usage
+
+1. Include `hgolbi.h`.
+1. Create a universe with `universe_create`.
+1. Populate the universe:
+    - with succesive calls to `universe_cell_set`.
+    - from a file containing a RLE pattern with `universe_RLE_readfile`.
+1. Declare actionners for exploration (at least `Explorer.extractor.foreach`).
+1. Explore the universe through space and time (at least defining `Explorer.spacetime.time.instant`) with calls to `universe_explore`.
+1. Destroy the universe with `universe_destroy`.
+
 # Example
 
 `hgolbi_example.c` is an example of usage of the hash-life algorithm.
+
+To build it, type `make`.
+
+`hgolbi_example` accepts options in command line (see `Makefile` for an example):
+
+- `-t value` to set an instant in time,where `value` is a 2^64^ based non negative integer number.
+- `-x min,max` to set a x-slice in space,where `min` and `max` are 2^64^ based signed integer numbers.
+- `-y min,max` to set a y-slice in space,where `min` and `max` are 2^64^ based signed integer numbers.
+
+2^64^ based integer numbers are composed of four or less components separated by `_`.
+E.g.,
+
+- `11_7` is equal to 11 x 2^64^ + 7.
+- `-111_0_0` is equal to -111 x 2^128^.
+
 
 **Have fun !**
