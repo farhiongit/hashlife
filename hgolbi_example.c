@@ -54,9 +54,16 @@ postaction (Universe * universe, SpaceTime st, uintbig_t numcells, void *arg)
   } while(0)
 
 static void
-TU (Universe *pUniverse, Explorer e)
+TU (void)
 {
-#ifndef DEBUG
+  Universe *pUniverse = universe_create ();
+  IFNOTEXIT (pUniverse, "Memory allocation error.");
+
+  Explorer e = { 0 };
+  e.extractor.preaction = preaction;
+  e.extractor.foreach = extractor;
+  e.extractor.postaction = postaction;
+
   // Glider
   universe_cell_set (pUniverse, LL_TO_LLL (0), LL_TO_LLL (0));
   universe_cell_set (pUniverse, LL_TO_LLL (1), LL_TO_LLL (0));
@@ -77,8 +84,7 @@ TU (Universe *pUniverse, Explorer e)
   EXPLORE (ULL_TO_ULLL (20000));
   EXPLORE (ULL_TO_ULLL (20000000));
   EXPLORE (ULL_TO_ULLL (ULONG_MAX));
-  universe_reinitialize (pUniverse);
-#endif
+  universe_destroy (pUniverse);
 }
 
 int
@@ -86,14 +92,12 @@ main (int argc, char *const argv[])
 {
   setlocale (LC_ALL, "");
 
-  Explorer e = { 0 };
-  e.extractor.preaction = preaction;
-  e.extractor.foreach = extractor;
-  e.extractor.postaction = postaction;
   Universe *pUniverse = universe_create ();
   IFNOTEXIT (pUniverse, "Memory allocation error.");
 
-  // Parsing command line, e.g.: ./hgolbi_example -t1/2 -x-9/10,3/4 -y-5/6,7/8 </dev/null
+  // Parsing command line, e.g.: ./hgolbi_example -x-9_10,3_4 -y-5_6,7_8 -t1_2 </dev/null
+  SpaceTime *sp = 0;
+  size_t nb_sp = 0;
   uintbig_t t = UINTBIG_ZERO;
   intbig_t xmin, ymin, xmax, ymax;
   xmin = ymin = xmax = ymax = INTBIG_ZERO;
@@ -110,7 +114,7 @@ main (int argc, char *const argv[])
     switch (opt)
     {
       case 'U':
-        TU (pUniverse, e);
+        TU ();
         break;
       case 't':
         for (t = UINTBIG_ZERO, ptr = optarg; (ptr = strtok_r (ptr, num_sep, &ntokptr)); ptr = 0)
@@ -119,6 +123,12 @@ main (int argc, char *const argv[])
           t = uintbig_add (uintbig_sl (t, ULL_NB_BITS), ULL_TO_ULLL (strtoull (ptr, &endptr, 10)));
           IFNOTEXIT (optarg && *optarg && *endptr == 0, "Invalid number %s for option '-%c'", ptr, opt);
         }
+        sp = realloc (sp, ++nb_sp * sizeof (*sp));
+        sp[nb_sp - 1].space.window.NWvertex.x = xmin;
+        sp[nb_sp - 1].space.window.NWvertex.y = ymin;
+        sp[nb_sp - 1].space.window.SEvertex.x = xmax;
+        sp[nb_sp - 1].space.window.SEvertex.y = ymax;
+        sp[nb_sp - 1].time.instant = t;
         break;
       case 'x':
       case 'y':
@@ -147,10 +157,6 @@ main (int argc, char *const argv[])
         }
         break;
     }
-  e.spacetime.space.window.NWvertex.x = xmin;
-  e.spacetime.space.window.NWvertex.y = ymin;
-  e.spacetime.space.window.SEvertex.x = xmax;
-  e.spacetime.space.window.SEvertex.y = ymax;
 
   FILE *f = 0;
   if (argc > optind)
@@ -176,7 +182,7 @@ main (int argc, char *const argv[])
       //const char *pattern = RULE "......o$oo$.o...ooo"; // Die-hard, eventually disappears after 130 generations
       //const char *pattern = RULE "......X$....X.XX$....X.X$....X$..X$X.X";     // Infinite growth, block-laying switch engine that leaves behind two-by-two still life blocks as its translates itself across the game's universe.
       //const char *pattern = RULE "77bo$77bo$77bo21$3o20$3bo$3bo$3bo5$20b3o$9b3o10bo$22bo$21bo!";        // 18-cell 40514-generation methuselah. The stable pattern that results from 40514M (excluding 70 escaping gliders) has 3731 cells and consists of 248 blinkers (including 21 traffic lights), 218 blocks, 163 beehives (including nine honey farms), 56 loaves, 39 boats, 10 ships, nine tubs, five ponds, four beacons, two toads, one barge, one eater 1 and one long boat.
-      //const char *pattern = RULE "10001o!";
+      //const char *pattern = RULE "10001o!";    // Stabilizes at 544008 cells
       //const char *pattern = RULE "15366bo$15366bo$15364boo$15363bo$15363bo$15363bo$15363bo6$15393bo$" "15392boo$15390bobbo$$15390bobo$15391bo133$15568boo$15569boo$15569bo29$" "15554bo$15553bobo$15555bo$15556bo507$59722boo$59721boo$59722bo29$" "59737bo$59736bobo$59736bo$59735bo13907$bo3bo$bbobo$obbo$o$o21$33bo$32b" "o$31bo$32bo$33bo$29b3o!";       // Metacatacryst, exhibits quadratic growth.
 
       IFNOTEXIT (f = fmemopen ((void *) pattern, strlen (pattern), "r"), "Can not read pattern");
@@ -186,9 +192,18 @@ main (int argc, char *const argv[])
   printf ("%'U cells have been read from the RLE pattern.\n", universe_RLE_readfile (pUniverse, f, INTBIG_ZERO, INTBIG_ZERO, 1));
   fclose (f);
 
-  EXPLORE (UINTBIG_ZERO);
-  if (!uintbig_is_zero (t))
-    EXPLORE (t);
+  Explorer e = { 0 };
+  e.extractor.preaction = preaction;
+  e.extractor.foreach = extractor;
+  e.extractor.postaction = postaction;
+  universe_explore (pUniverse, e);\
+
+  for (size_t i = 0 ; i < nb_sp ; i++)
+  {
+    e.spacetime = sp[i];
+    universe_explore (pUniverse, e);\
+  }
+  free (sp);
 
   universe_destroy (pUniverse);
   printf ("Done.\n");

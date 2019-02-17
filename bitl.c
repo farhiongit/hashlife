@@ -306,6 +306,7 @@ uintbig_to_##name (FILE * f, uintbig_t a, char flag)          \
 {                                                             \
   (void) f;                                                   \
   char fmt0[] = "%0llu";                                      \
+  char fmt1[] = "2^%u";                                       \
   char fmtn[] = "%0llu x 2^%u";                               \
   if (flag == '\'')                                           \
     fmtn[1] = fmt0[1] = flag;                                 \
@@ -318,7 +319,10 @@ uintbig_to_##name (FILE * f, uintbig_t a, char flag)          \
     {                                                         \
       if (more)                                               \
         ret += printer (f, " + ");                            \
-      ret += printer (f, fmtn, a.array[j - 1], (j - 1) * ULL_NB_BITS);  \
+      if (a.array[j - 1] == 1)                                \
+        ret += printer (f, fmt1, (j - 1) * ULL_NB_BITS);      \
+      else                                                    \
+        ret += printer (f, fmtn, a.array[j - 1], (j - 1) * ULL_NB_BITS);  \
       more = 1;                                               \
     }                                                         \
                                                               \

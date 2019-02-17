@@ -13,11 +13,12 @@ It offers :
 It can handle almost infinite universe
 (up to 10^77^ x 10^77^, using a lightweight implementation of big integers coded on 256 bits, in `bitl.h` and `bitl.c`.)
 
-This one is a tough one, so, hold on !
+However, it makes use of template lists and sets.
+This makes the code an order of magniture slower than [the highly optimized golly](http://golly.sourceforge.net/).
 
 The code `hgolbi.c` is commented, and refers to excerpts from the Gosper's paper.
 
-It makes use of template lists and sets, which files can be found [here](https://github.com/farhiongit/Ctemplates).
+This one is a tough one, so, hold on !
 
 # General scheme
 
@@ -160,6 +161,8 @@ Macrocell
 `hgolbi_example.c` is an example of usage of the hash-life algorithm.
 
 To build it, type `make`.
+
+`hgolbi.c` makes use of template lists and sets, which files can be found [here](https://github.com/farhiongit/Ctemplates).
 
 `hgolbi_example` accepts options in command line (see `Makefile` for an example):
 

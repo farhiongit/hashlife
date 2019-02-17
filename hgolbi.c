@@ -108,9 +108,11 @@ static int
 macrocell_lt (MacrocellId a, MacrocellId b)
 {
   for (size_t i = 0; i < NB_QUADRANTS; i++)
-    if (a->quadrant[i] < b->quadrant[i])
+    if (a->quadrant[i] == b->quadrant[i])
+      continue;
+    else if (a->quadrant[i] < b->quadrant[i])
       return 1;
-    else if (a->quadrant[i] > b->quadrant[i])
+    else //if (a->quadrant[i] > b->quadrant[i])
       return 0;
 
   return 0;
@@ -356,7 +358,7 @@ typedef struct sUniverse
   /* *INDENT-OFF* */
   LIST (Level) * listOfLevels;   // Register of macrocells at every level of the Universe.
   /* *INDENT-ON* */
-  unsigned char RESULT4x4[UINT16_MAX + 1];
+  unsigned char RESULT4x4[UINT16_MAX + 1];    // RESULT for 4x4 macro-cells for rule B/S.
   unsigned char S;              // Pattern for survival.
   unsigned char B;              // Pattern for birth.
 } Universe;
