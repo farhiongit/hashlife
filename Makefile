@@ -1,7 +1,7 @@
 TEMPLATES_DIR = ../templates
 #CC=clang -fmacro-backtrace-limit=0 -Wno-gnu-binary-literal
-CC=gcc -Wno-format
-CFLAGS += -Wall -Wextra -Werror -I$(TEMPLATES_DIR)
+CC=gcc
+CFLAGS += -Wall -Wextra -Werror -I$(TEMPLATES_DIR) -Wno-format -Wno-format-security
 #CFLAGS += -pedantic
 #CFLAGS += -fdebug-cpp
 #LDFLAGS += -pthread

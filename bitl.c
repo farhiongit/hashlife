@@ -129,7 +129,7 @@ uintbig_sub (uintbig_t a, uintbig_t b)
 uintbig_t
 uintbig_sl (uintbig_t a, size_t shift)
 {
-  if (shift >= UBI_NB_BITS)
+  if (uintbig_is_zero (a) || shift >= UBI_NB_BITS)
     return UINTBIG_ZERO;
 
   for (; shift >= ULL_NB_BITS; shift -= ULL_NB_BITS)
@@ -161,7 +161,7 @@ uintbig_sl (uintbig_t a, size_t shift)
 uintbig_t
 uintbig_sr (uintbig_t a, size_t shift)
 {
-  if (shift >= UBI_NB_BITS)
+  if (uintbig_is_zero (a) || shift >= UBI_NB_BITS)
     return UINTBIG_ZERO;
 
   for (; shift >= ULL_NB_BITS; shift -= ULL_NB_BITS)
@@ -193,7 +193,7 @@ intbig_t INTBIG_ZERO = (intbig_t) { {0}
 };
 intbig_t INTBIG_MAX = { {ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, LLONG_MAX}
 };
-intbig_t INTBIG_MIN = { {~ULLONG_MAX, ~ULLONG_MAX, ~ULLONG_MAX, ~LLONG_MAX}
+intbig_t INTBIG_MIN = { {~ULLONG_MAX, ~ULLONG_MAX, ~ULLONG_MAX, ~(typeof (INTBIG_MIN.array[0])) LLONG_MAX}
 };
 
 int
@@ -245,9 +245,9 @@ intbig_t
 LL_TO_LLL (signed long long int ll)
 {
   if (ll >= 0)
-    return ULL_TO_ULLL (ll);
+    return ULL_TO_ULLL ((long long unsigned int) ll);
   else
-    return intbig_opposite (ULL_TO_ULLL (-ll));
+    return intbig_opposite (ULL_TO_ULLL ((long long unsigned int) (-ll)));
 }
 
 intbig_t
@@ -271,10 +271,9 @@ intbig_cmp (intbig_t a, intbig_t b)
 int
 intbig_is_zero (intbig_t a)
 {
-  return uintbig_is_zero (a);   // Also works if a and b are negative.
+  return uintbig_is_zero (a);
 }
 
-intbig_t intbig_sub (intbig_t a, intbig_t b);
 intbig_t
 intbig_add (intbig_t a, intbig_t b)
 {
@@ -291,6 +290,7 @@ intbig_sub (intbig_t a, intbig_t b)
 // printf extension (%V for intbig_t, %U for uintbig_t)
 //---------------------------------------------------
 
+// see register_printf_specifier
 // https://sourceware.org/bugzilla/attachment.cgi?id=3874&action=view
 // http://www.gnu.org/software/libc/manual/html_node/Customizing-Printf.html#Customizing-Printf
 
@@ -365,15 +365,15 @@ DEFINE_PRINTER (stream, fprintf);
 DEFINE_PRINTER (sink, FSINKF);
 
 static int
-intbig_printf (FILE * stream, const struct printf_info *info, const void *const *args)
+intbig_printf (FILE *stream, const struct printf_info *info, const void *const args[])
 {
   // info->spec == SPEC_INTBIG
   intbig_t a;
-  memcpy (&a, *((void ***) args)[0], sizeof (a));       // uh !
+  memcpy (&a, *((void *const *const *) args)[0], sizeof (a));   // uh !
   int ret = intbig_to_sink (0, a, info->showsign ? '+' : info->space ? ' ' : 0,
                             info->group ? '\'' : 0);
-  char *str = calloc (ret + 1, sizeof (*str));
-  FILE *buffer = fmemopen (str, ret + 1, "w");
+  char *str = calloc ((size_t) (ret + 1), sizeof (*str));
+  FILE *buffer = fmemopen (str, (size_t) (ret + 1), "w");
   intbig_to_stream (buffer, a, info->showsign ? '+' : info->space ? ' ' : 0, info->group ? '\'' : 0);
   fclose (buffer);
   ret = fprintf (stream, "%*s", (info->left ? -info->width : info->width), str);
@@ -382,14 +382,14 @@ intbig_printf (FILE * stream, const struct printf_info *info, const void *const 
 }
 
 static int
-uintbig_printf (FILE * stream, const struct printf_info *info, const void *const *args)
+uintbig_printf (FILE *stream, const struct printf_info *info, const void *const args[])
 {
   // info->spec == SPEC_UINTBIG
   uintbig_t a;
-  memcpy (&a, *((void ***) args)[0], sizeof (a));
+  memcpy (&a, *((void *const *const *) args)[0], sizeof (a));   // uh ! again
   int ret = uintbig_to_sink (0, a, info->group ? '\'' : 0);
-  char *str = calloc (ret + 1, sizeof (*str));
-  FILE *buffer = fmemopen (str, ret + 1, "w");
+  char *str = calloc ((size_t) (ret + 1), sizeof (*str));
+  FILE *buffer = fmemopen (str, (size_t) (ret + 1), "w");
   uintbig_to_stream (buffer, a, info->group ? '\'' : 0);
   fclose (buffer);
   ret = fprintf (stream, "%*s", (info->left ? -info->width : info->width), str);
@@ -420,14 +420,14 @@ uintbig_print_arginfo_size (const struct printf_info *info, size_t n, int *argty
 }
 
 static void
-uintbig_va (void *mem, va_list * ap)
+uintbig_va (void *mem, va_list *ap)
 {
   uintbig_t v = va_arg (*ap, uintbig_t);
   memcpy (mem, &v, sizeof (v));
 }
 
 static void
-intbig_va (void *mem, va_list * ap)
+intbig_va (void *mem, va_list *ap)
 {
   intbig_t v = va_arg (*ap, intbig_t);
   memcpy (mem, &v, sizeof (v));

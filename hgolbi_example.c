@@ -18,18 +18,16 @@ do { \
 } while(0)
 
 static void
-preaction (Universe * universe, SpaceTime st, void * arg)
+preaction (Universe *universe, SpaceTime st, void *arg)
 {
   (void) arg;
   (void) universe;
   printf ("Cells in universe within window [%1$+'V ; %2$+'V] x [%3$+'V ; %4$+'V] at generation %5$'U:\n",
-          st.space.window.NWvertex.x, st.space.window.SEvertex.x,
-          st.space.window.NWvertex.y, st.space.window.SEvertex.y,
-          st.time.instant);
+          st.space.window.NWvertex.x, st.space.window.SEvertex.x, st.space.window.NWvertex.y, st.space.window.SEvertex.y, st.time.instant);
 }
 
 static void
-extractor (Universe * universe, SpaceTime st, intbig_t x, intbig_t y, void *arg)
+extractor (Universe *universe, SpaceTime st, intbig_t x, intbig_t y, void *arg)
 {
   (void) arg;
   (void) universe;
@@ -37,14 +35,12 @@ extractor (Universe * universe, SpaceTime st, intbig_t x, intbig_t y, void *arg)
 }
 
 static void
-postaction (Universe * universe, SpaceTime st, uintbig_t numcells, void *arg)
+postaction (Universe *universe, SpaceTime st, uintbig_t numcells, void *arg)
 {
   (void) arg;
   (void) universe;
   printf ("There are %1$'U cells in universe within window [%2$+'V ; %3$+'V] x [%4$+'V ; %5$+'V] at generation %6$'U.\n",
-          numcells, st.space.window.NWvertex.x, st.space.window.SEvertex.x,
-          st.space.window.NWvertex.y, st.space.window.SEvertex.y,
-          st.time.instant);
+          numcells, st.space.window.NWvertex.x, st.space.window.SEvertex.x, st.space.window.NWvertex.y, st.space.window.SEvertex.y, st.time.instant);
 }
 
 #define EXPLORE(mytime)\
@@ -132,8 +128,7 @@ main (int argc, char *const argv[])
         break;
       case 'x':
       case 'y':
-        for (v = (opt == 'x' ? &xmin : &ymin), ptr = optarg; (ptr = strtok_r (ptr, coord_sep, &ctokptr));
-             v = (opt == 'x' ? &xmax : &ymax), ptr = 0)
+        for (v = (opt == 'x' ? &xmin : &ymin), ptr = optarg; (ptr = strtok_r (ptr, coord_sep, &ctokptr)); v = (opt == 'x' ? &xmax : &ymax), ptr = 0)
         {
           for (sign = 0, *v = INTBIG_ZERO; (ptr = strtok_r (ptr, num_sep, &ntokptr)); ptr = 0)
           {
@@ -156,6 +151,7 @@ main (int argc, char *const argv[])
             *v = intbig_opposite (*v);
         }
         break;
+      default:
     }
 
   FILE *f = 0;
@@ -177,7 +173,7 @@ main (int argc, char *const argv[])
       //const char *pattern = RULE "10X";        // Pentadecathlon (period 15):
       //const char *pattern = RULE "3X"; // Blinker:
       //const char *pattern = RULE "xx$xx20$.o.$..o$ooo"; // Block + Glider:
-      const char *pattern = RULE "bo5b$3bo3b$2o2b3o!";  // Acorn, takes 5206 generations to stabilize to 633 cells, including 13 escaped gliders:
+      char pattern[] = RULE "bo5b$3bo3b$2o2b3o!";       // Acorn, takes 5206 generations to stabilize to 633 cells, including 13 escaped gliders:
       //const char *pattern = RULE "ooo$.o.";    // Tee or Tetromino, stabilizes to 12 cells in a 9x9 square at 10th generation.
       //const char *pattern = RULE "......o$oo$.o...ooo"; // Die-hard, eventually disappears after 130 generations
       //const char *pattern = RULE "......X$....X.XX$....X.X$....X$..X$X.X";     // Infinite growth, block-laying switch engine that leaves behind two-by-two still life blocks as its translates itself across the game's universe.
@@ -196,12 +192,12 @@ main (int argc, char *const argv[])
   e.extractor.preaction = preaction;
   e.extractor.foreach = extractor;
   e.extractor.postaction = postaction;
-  universe_explore (pUniverse, e);\
+  universe_explore (pUniverse, e);
 
-  for (size_t i = 0 ; i < nb_sp ; i++)
+  for (size_t i = 0; i < nb_sp; i++)
   {
     e.spacetime = sp[i];
-    universe_explore (pUniverse, e);\
+    universe_explore (pUniverse, e);
   }
   free (sp);
 

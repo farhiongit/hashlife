@@ -34,17 +34,17 @@ typedef struct
 // An extractor.
 typedef struct
 {
-  void (*preaction) (Universe *, SpaceTime st, void * context);
-  void (*foreach) (Universe *, SpaceTime st, intbig_t x, intbig_t y, void * context);
-  void (*postaction) (Universe *, SpaceTime st, uintbig_t num_cells, void * context);
-  void *context;         // For user purpose.
+  void (*preaction) (Universe *, SpaceTime st, void *context);
+  void (*foreach) (Universe *, SpaceTime st, intbig_t x, intbig_t y, void *context);
+  void (*postaction) (Universe *, SpaceTime st, uintbig_t num_cells, void *context);
+  void *context;                // For user purpose.
 } Extractor;
 // An explorer of universe in space and time.
 typedef struct
 {
   SpaceTime spacetime;
   Extractor extractor;
-  Universe *universe;    // Reserved, do not use.
+  Universe *universe;           // Reserved, do not use.
 } Explorer;
 
 // Create a universe and return the pointer to it.
