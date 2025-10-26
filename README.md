@@ -1,4 +1,4 @@
-An implementatin of the Hashlife algorithm
+An implementation of the Hashlife algorithm
 ====================
 
 This code, in `hgolbi.c`, implements in C language the
@@ -54,7 +54,7 @@ Those cells will evolve following the rules of the Game Of Life, for each time s
 In order to reduce (exponentially) the complexity (number of operations) to calculate the evolution of the universe:
 
 - Two identical parts of the universe (square or macro-cells), even occuring at different times,
-  and surrounded by the same environnement, will evolve the same way. The evolution will therefore by computed only once.
+  and surrounded by the same environnement, will evolve the same way. The evolution will therefore be computed only once.
   For this, each macrocell records the result of its evolution after _t_ steps (where _t_ is one fourth the size of the macrocell),
   of its central cells (a square half the size of the macrocell).
 - The evolution of a macro-cell at instant 2 x _t_ can be deduced, without extra computation,
@@ -129,7 +129,7 @@ Macrocell
 - `universe_cell_unset` removes a cell from the universe at a given position at initial time 0.
 - `universe_cell_is_set` controls the presence of a cell in the universe at a given position at initial time 0.
 - `universe_renitialize` empties universe for reuse.
-- `universe_RLE_readfile` reinitializes and reconfigures the initial time 0 of a universe from a given RLE file.
+- `universe_RLE_readfile` reinitializes and reconfigures the initial time 0 of a universe from a given RLE file (see [Run Length Encoded](https://conwaylife.com/wiki/Run_Length_Encoded)).
 - `universe_explore` find cells in a given region of space and at a given instant of time.
 
 ### Private functions
@@ -160,7 +160,7 @@ Macrocell
 
 `hgolbi_example.c` is an example of usage of the hash-life algorithm.
 
-To build it, type `make`.
+To build it, type: `make`
 
 `hgolbi.c` makes use of template lists and sets, which files can be found [here](https://github.com/farhiongit/Ctemplates).
 

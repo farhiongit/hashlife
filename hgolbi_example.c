@@ -116,7 +116,7 @@ main (int argc, char *const argv[])
         for (t = UINTBIG_ZERO, ptr = optarg; (ptr = strtok_r (ptr, num_sep, &ntokptr)); ptr = 0)
         {
           errno = 0;
-          t = uintbig_add (uintbig_sl (t, ULL_NB_BITS), ULL_TO_ULLL (strtoull (ptr, &endptr, 10)));
+          t = uintbig_add (uintbig_shiftleft (t, ULL_NB_BITS), ULL_TO_ULLL (strtoull (ptr, &endptr, 10)));
           IFNOTEXIT (optarg && *optarg && *endptr == 0, "Invalid number %s for option '-%c'", ptr, opt);
         }
         sp = realloc (sp, ++nb_sp * sizeof (*sp));
@@ -144,7 +144,7 @@ main (int argc, char *const argv[])
                 sign = 1;
             }
             else
-              *v = uintbig_add (uintbig_sl (*v, ULL_NB_BITS), ULL_TO_ULLL (strtoull (ptr, &endptr, 10)));
+              *v = uintbig_add (uintbig_shiftleft (*v, ULL_NB_BITS), ULL_TO_ULLL (strtoull (ptr, &endptr, 10)));
             IFNOTEXIT (ptr && *ptr && *endptr == 0, "Invalid number %s for option '-%c'", ptr, opt);
           }
           if (sign == -1)

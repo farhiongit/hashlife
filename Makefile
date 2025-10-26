@@ -1,14 +1,8 @@
 TEMPLATES_DIR = ../templates
 #CC=clang -fmacro-backtrace-limit=0 -Wno-gnu-binary-literal
-CC=gcc
-CFLAGS += -Wall -Wextra -Werror -I$(TEMPLATES_DIR) -Wno-format -Wno-format-security
-#CFLAGS += -pedantic
-#CFLAGS += -fdebug-cpp
-#LDFLAGS += -pthread
+#CC=gcc
+CFLAGS += -I$(TEMPLATES_DIR) -Wno-format -Wno-format-security  # since register_printf_specifier (non-standard gnu extension) is used.
 CFLAGS += -O3
-#CFLAGS += -g -DDEBUG -DTU
-#CFLAGS += -pg
-#LDFLAGS += -pg
 
 all: bitl.o bitl hgolbi.o hgolbi_example infos
 

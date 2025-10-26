@@ -127,7 +127,7 @@ uintbig_sub (uintbig_t a, uintbig_t b)
 }
 
 uintbig_t
-uintbig_sl (uintbig_t a, size_t shift)
+uintbig_shiftleft (uintbig_t a, size_t shift)
 {
   if (uintbig_is_zero (a) || shift >= UBI_NB_BITS)
     return UINTBIG_ZERO;
@@ -159,7 +159,7 @@ uintbig_sl (uintbig_t a, size_t shift)
 }
 
 uintbig_t
-uintbig_sr (uintbig_t a, size_t shift)
+uintbig_shiftright (uintbig_t a, size_t shift)
 {
   if (uintbig_is_zero (a) || shift >= UBI_NB_BITS)
     return UINTBIG_ZERO;
@@ -472,8 +472,8 @@ main (void)
   a = ULL_TO_ULLL (1);
 
   PU (a);
-  PU (a = uintbig_sl (a, 70 + 64));
-  PU (a = uintbig_sr (a, 69 + 64));
+  PU (a = uintbig_shiftleft (a, 70 + 64));
+  PU (a = uintbig_shiftright (a, 69 + 64));
 
   uintbig_t b = ULL_TO_ULLL (~0ULL);
   PU (b);
@@ -521,7 +521,7 @@ main (void)
   PS (sa = intbig_add (sa, sb));
   PS (sa = intbig_add (sa, sb));
   PS (sa = intbig_add (sa, LL_TO_LLL (-187496325)));
-  PS (intbig_sub (ULLL_TO_LLL (uintbig_sl (intbig_abs (sa), 151)), LL_TO_LLL (14789)));
-  PS (intbig_opposite (intbig_sub (ULLL_TO_LLL (uintbig_sl (intbig_abs (sa), 151)), LL_TO_LLL (14789))));
+  PS (intbig_sub (ULLL_TO_LLL (uintbig_shiftleft (intbig_abs (sa), 151)), LL_TO_LLL (14789)));
+  PS (intbig_opposite (intbig_sub (ULLL_TO_LLL (uintbig_shiftleft (intbig_abs (sa), 151)), LL_TO_LLL (14789))));
 }
 #endif

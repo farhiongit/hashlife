@@ -193,7 +193,7 @@ time_overlap (unsigned int height, uintbig_t tbase, uintbig_t instant)
   if (uintbig_cmp (instant, tbase) < 0)
     return 0;
   uintbig_t deltat = uintbig_sub (instant, tbase);
-  uintbig_t quarter_size = height >= 2 ? uintbig_sl (ULL_TO_ULLL (1), height - 2) : UINTBIG_ZERO;
+  uintbig_t quarter_size = height >= 2 ? uintbig_shiftleft (ULL_TO_ULLL (1), height - 2) : UINTBIG_ZERO;
   if (uintbig_cmp (deltat, quarter_size) > 0)
     return 0;
   return 1;
@@ -206,8 +206,8 @@ space_overlap (unsigned int height, uintbig_t xmin, uintbig_t ymin, Window windo
   uintbig_t wxmax = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), window.SEvertex.x);
   uintbig_t wymin = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), window.NWvertex.y);
   uintbig_t wymax = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), window.SEvertex.y);
-  uintbig_t xmax = uintbig_sub (uintbig_add (xmin, uintbig_sl (ULL_TO_ULLL (1), height)), ULL_TO_ULLL (1));
-  uintbig_t ymax = uintbig_sub (uintbig_add (ymin, uintbig_sl (ULL_TO_ULLL (1), height)), ULL_TO_ULLL (1));
+  uintbig_t xmax = uintbig_sub (uintbig_add (xmin, uintbig_shiftleft (ULL_TO_ULLL (1), height)), ULL_TO_ULLL (1));
+  uintbig_t ymax = uintbig_sub (uintbig_add (ymin, uintbig_shiftleft (ULL_TO_ULLL (1), height)), ULL_TO_ULLL (1));
 
   if (uintbig_cmp (wxmax, xmin) < 0 || uintbig_cmp (wxmin, xmax) > 0 || uintbig_cmp (wymax, ymin) < 0 || uintbig_cmp (wymin, ymax) > 0)
     return 0;
@@ -227,7 +227,7 @@ macrocell_get_cells_in_window (MacrocellId m, unsigned int height, uintbig_t xmi
   uintbig_t ret = UINTBIG_ZERO;
   if (height)
   {
-    uintbig_t half_size = uintbig_sl (ULL_TO_ULLL (1), height - 1);
+    uintbig_t half_size = uintbig_shiftleft (ULL_TO_ULLL (1), height - 1);
     for (Quadrant q = 0; q < NB_QUADRANTS; q++)
       ret = uintbig_add (ret,
                          macrocell_get_cells_in_window (m->quadrant[q], height - 1,
@@ -366,8 +366,9 @@ universe_init (Universe *pUniverse)
 
   static Universe UNIVERSE_INITIALIZER = { 0 };
   *pUniverse = UNIVERSE_INITIALIZER;
-  pUniverse->S = 1 << 2 | 1 << 3;       // Pattern for survival (if 2 ou 3 neighbours).
-  pUniverse->B = 1 << 3;        // Pattern for birth (if 3 neighbours).
+  // The rule of game of life B3/S23 is used by default.
+  pUniverse->S = 1 << 2 | 1 << 3;       // Pattern for survival S23 (if 2 ou 3 neighbours).
+  pUniverse->B = 1 << 3;        // Pattern for birth B3 (if 3 neighbours).
   for (size_t i = 0; i < sizeof (pUniverse->RESULT4x4) / sizeof (*(pUniverse->RESULT4x4)); i++)
     pUniverse->RESULT4x4[i] = next2x2 ((uint16_t) i, pUniverse->S, pUniverse->B);
 }
@@ -820,8 +821,8 @@ universe_expand (Universe *pUniverse)
     if (newroot->quadrant[i])
       newroot->quadrant[i] = macrocell_patternify (newroot->quadrant[i], pl->macrocells);
   free (pUniverse->root);
-  pUniverse->x0 = uintbig_sub (pUniverse->x0, uintbig_sl (ULL_TO_ULLL (1), pUniverse->height - 1));
-  pUniverse->y0 = uintbig_sub (pUniverse->y0, uintbig_sl (ULL_TO_ULLL (1), pUniverse->height - 1));
+  pUniverse->x0 = uintbig_sub (pUniverse->x0, uintbig_shiftleft (ULL_TO_ULLL (1), pUniverse->height - 1));
+  pUniverse->y0 = uintbig_sub (pUniverse->y0, uintbig_shiftleft (ULL_TO_ULLL (1), pUniverse->height - 1));
   pUniverse->height++;
   pUniverse->root = newroot;
   if (LIST_SIZE (pUniverse->listOfLevels) == pUniverse->height)
@@ -848,7 +849,8 @@ universe_contains (Universe *pUniverse, intbig_t sx, intbig_t sy)
   uintbig_t y = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), sy);
   if (uintbig_cmp (x, pUniverse->x0) < 0 || uintbig_cmp (y, pUniverse->y0) < 0)
     return 0;
-  if (!uintbig_is_zero (uintbig_sr (uintbig_sub (x, pUniverse->x0), pUniverse->height)) || !uintbig_is_zero (uintbig_sr (uintbig_sub (y, pUniverse->y0), pUniverse->height)))
+  if (!uintbig_is_zero (uintbig_shiftright (uintbig_sub (x, pUniverse->x0), pUniverse->height))
+      || !uintbig_is_zero (uintbig_shiftright (uintbig_sub (y, pUniverse->y0), pUniverse->height)))
     return 0;
   return 1;
 }
@@ -869,11 +871,11 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     // If the universe is empty, create it ex nihilo.
     ASSERT (leaf);
     pUniverse->height = 1;
-    pUniverse->x0 = uintbig_sl (uintbig_sr (x, pUniverse->height), pUniverse->height);
-    pUniverse->y0 = uintbig_sl (uintbig_sr (y, pUniverse->height), pUniverse->height);
-    Quadrant q = ULLL_TO_ULL (uintbig_add (uintbig_and (uintbig_sr (x, pUniverse->height - 1), ULL_TO_ULLL (1)),
-                                           uintbig_sl (uintbig_and (uintbig_sr (y, pUniverse->height - 1),
-                                                                    ULL_TO_ULLL (1)), 1)));
+    pUniverse->x0 = uintbig_shiftleft (uintbig_shiftright (x, pUniverse->height), pUniverse->height);
+    pUniverse->y0 = uintbig_shiftleft (uintbig_shiftright (y, pUniverse->height), pUniverse->height);
+    Quadrant q = ULLL_TO_ULL (uintbig_add (uintbig_and (uintbig_shiftright (x, pUniverse->height - 1), ULL_TO_ULLL (1)),
+                                           uintbig_shiftleft (uintbig_and (uintbig_shiftright (y, pUniverse->height - 1),
+                                                                           ULL_TO_ULLL (1)), 1)));
     pUniverse->root = calloc (1, sizeof (*pUniverse->root));
     pUniverse->root->nb_instances = ULL_TO_ULLL (1);    // The root is unique.
     pUniverse->root->quadrant[q] = leaf;
@@ -915,8 +917,8 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     for (size_t h = pUniverse->height; h >= 1; h--)
     {
       ASSERT (h >= 1);
-      Quadrant q = ULLL_TO_ULL (uintbig_add (uintbig_and (uintbig_sr (uintbig_sub (x, pUniverse->x0), h - 1), ULL_TO_ULLL (1)),
-                                             uintbig_sl (uintbig_and (uintbig_sr (uintbig_sub (y, pUniverse->y0), h - 1), ULL_TO_ULLL (1)), 1)));
+      Quadrant q = ULLL_TO_ULL (uintbig_add (uintbig_and (uintbig_shiftright (uintbig_sub (x, pUniverse->x0), h - 1), ULL_TO_ULLL (1)),
+                                             uintbig_shiftleft (uintbig_and (uintbig_shiftright (uintbig_sub (y, pUniverse->y0), h - 1), ULL_TO_ULLL (1)), 1)));
       path[h - 1].oldmc = m;
       // Creates a copy of m
       path[h - 1].newmc = calloc (1, sizeof (*path[h - 1].newmc));
@@ -1185,7 +1187,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
     return m->result;
   }
   // The instant of m->hresult corresponds to the request instant of pE
-  uintbig_t quarter_size = uintbig_sl (ULL_TO_ULLL (1), offset.height - 2);
+  uintbig_t quarter_size = uintbig_shiftleft (ULL_TO_ULLL (1), offset.height - 2);
   if (uintbig_cmp (deltat, quarter_size) == 0)
   {
     if (m->result)
@@ -1452,7 +1454,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
   Level *l2 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height - 2));
   ASSERT (l2 && l2->macrocells);
 
-  uintbig_t eighth_size = uintbig_sr (quarter_size, 1);
+  uintbig_t eighth_size = uintbig_shiftright (quarter_size, 1);
   for (Quadrant u = 0; u < NB_QUADRANTS; u++)
   {
     MacrocellId mtemp = calloc (1, sizeof (*mtemp));
@@ -1539,7 +1541,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
   else
   {
     unsigned int min_height = 2;
-    for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_sr (t, 1))
+    for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_shiftright (t, 1))
       min_height++;
 
     // [GOSPER] "outermost SHOW method ensures that the configuration being probed is surroundedby enough vacuum so that its
@@ -1549,7 +1551,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     while (pUniverse->height < min_height || universe_is_closed (pUniverse))
       universe_expand (pUniverse);
 
-    uintbig_t quarter_size = uintbig_sl (ULL_TO_ULLL (1), pUniverse->height - 2);
+    uintbig_t quarter_size = uintbig_shiftleft (ULL_TO_ULLL (1), pUniverse->height - 2);
     ASSERT (uintbig_cmp (explorer.spacetime.time.instant, quarter_size) <= 0);
 
     // Compute the forecast of the whole universe and its reachable neighborhood (ie within reachable distance at speed of light).

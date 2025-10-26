@@ -52,10 +52,10 @@ uintbig_t uintbig_add (uintbig_t a, uintbig_t b);
 uintbig_t uintbig_sub (uintbig_t a, uintbig_t b);
 
 // Returns a << shift.
-uintbig_t uintbig_sl (uintbig_t a, size_t shift);
+uintbig_t uintbig_shiftleft (uintbig_t a, size_t shift);
 
 // Returns a >> shift.
-uintbig_t uintbig_sr (uintbig_t a, size_t shift);
+uintbig_t uintbig_shiftright (uintbig_t a, size_t shift);
 
 //---------------------------------------------------
 // signed long long int
