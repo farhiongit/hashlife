@@ -404,7 +404,7 @@ intbig_print_arginfo_size (const struct printf_info *info, size_t n, int *argtyp
   /* We always take exactly one argument and this is big integer */
   if (n > 0)
     argtypes[0] = PA_INTBIG;
-  *size = sizeof (intbig_t);
+  *size = (int) sizeof (intbig_t);
   return 1;
 }
 
@@ -415,7 +415,7 @@ uintbig_print_arginfo_size (const struct printf_info *info, size_t n, int *argty
   /* We always take exactly one argument and this is big integer */
   if (n > 0)
     argtypes[0] = PA_UINTBIG;
-  *size = sizeof (uintbig_t);
+  *size = (int) sizeof (uintbig_t);
   return 1;
 }
 

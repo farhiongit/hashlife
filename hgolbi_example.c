@@ -152,6 +152,7 @@ main (int argc, char *const argv[])
         }
         break;
       default:
+        break;
     }
 
   FILE *f = 0;
@@ -167,19 +168,19 @@ main (int argc, char *const argv[])
     else
     {
 #define RULE "rule=B3/S23\n"
-      //const char *pattern = RULE "9bo12b$7bobo12b$6bobo13b$2o3bo2bo11b2o$2o4bobo11b2o$7bobo12b$9bo!";  // Queen bee shuttle, period 30:
-      //const char *pattern = RULE "24bo11b$22bobo11b$12b2o6b2o12b2o$11bo3bo4b2o12b2o$2o8bo5bo3b2o14b$2o8bo3bob2o4bobo11b$10bo5bo7bo11b$11bo3bo20b$12b2o!";      // Gosper glider gun
-      //const char *pattern = RULE ".XX$XX$.X";  // R-pentomino, stabilizes at generation 1103 with 116 cells, including one escaped glider at generation 69:
-      //const char *pattern = RULE "10X";        // Pentadecathlon (period 15):
-      //const char *pattern = RULE "3X"; // Blinker:
-      //const char *pattern = RULE "xx$xx20$.o.$..o$ooo"; // Block + Glider:
-      char pattern[] = RULE "bo5b$3bo3b$2o2b3o!";       // Acorn, takes 5206 generations to stabilize to 633 cells, including 13 escaped gliders:
-      //const char *pattern = RULE "ooo$.o.";    // Tee or Tetromino, stabilizes to 12 cells in a 9x9 square at 10th generation.
-      //const char *pattern = RULE "......o$oo$.o...ooo"; // Die-hard, eventually disappears after 130 generations
-      //const char *pattern = RULE "......X$....X.XX$....X.X$....X$..X$X.X";     // Infinite growth, block-laying switch engine that leaves behind two-by-two still life blocks as its translates itself across the game's universe.
-      //const char *pattern = RULE "77bo$77bo$77bo21$3o20$3bo$3bo$3bo5$20b3o$9b3o10bo$22bo$21bo!";        // 18-cell 40514-generation methuselah. The stable pattern that results from 40514M (excluding 70 escaping gliders) has 3731 cells and consists of 248 blinkers (including 21 traffic lights), 218 blocks, 163 beehives (including nine honey farms), 56 loaves, 39 boats, 10 ships, nine tubs, five ponds, four beacons, two toads, one barge, one eater 1 and one long boat.
-      //const char *pattern = RULE "10001o!";    // Stabilizes at 544008 cells
-      //const char *pattern = RULE "15366bo$15366bo$15364boo$15363bo$15363bo$15363bo$15363bo6$15393bo$" "15392boo$15390bobbo$$15390bobo$15391bo133$15568boo$15569boo$15569bo29$" "15554bo$15553bobo$15555bo$15556bo507$59722boo$59721boo$59722bo29$" "59737bo$59736bobo$59736bo$59735bo13907$bo3bo$bbobo$obbo$o$o21$33bo$32b" "o$31bo$32bo$33bo$29b3o!";       // Metacatacryst, exhibits quadratic growth.
+      //char *pattern = RULE "9bo12b$7bobo12b$6bobo13b$2o3bo2bo11b2o$2o4bobo11b2o$7bobo12b$9bo!";  // Queen bee shuttle, period 30:
+      //char *pattern = RULE "24bo11b$22bobo11b$12b2o6b2o12b2o$11bo3bo4b2o12b2o$2o8bo5bo3b2o14b$2o8bo3bob2o4bobo11b$10bo5bo7bo11b$11bo3bo20b$12b2o!";      // Gosper glider gun
+      //char *pattern = RULE ".XX$XX$.X";  // R-pentomino, stabilizes at generation 1103 with 116 cells, including one escaped glider at generation 69:
+      //char *pattern = RULE "10X";        // Pentadecathlon (period 15):
+      //char *pattern = RULE "3X"; // Blinker:
+      //char *pattern = RULE "xx$xx20$.o.$..o$ooo"; // Block + Glider:
+      char *pattern = RULE "bo5b$3bo3b$2o2b3o!";        // Acorn, takes 5206 generations to stabilize to 633 cells, including 13 escaped gliders:
+      //char *pattern = RULE "ooo$.o.";    // Tee or Tetromino, stabilizes to 12 cells in a 9x9 square at 10th generation.
+      //char *pattern = RULE "......o$oo$.o...ooo"; // Die-hard, eventually disappears after 130 generations
+      //char *pattern = RULE "......X$....X.XX$....X.X$....X$..X$X.X";     // Infinite growth, block-laying switch engine that leaves behind two-by-two still life blocks as its translates itself across the game's universe.
+      //char *pattern = RULE "77bo$77bo$77bo21$3o20$3bo$3bo$3bo5$20b3o$9b3o10bo$22bo$21bo!";        // 18-cell 40514-generation methuselah. The stable pattern that results from 40514M (excluding 70 escaping gliders) has 3731 cells and consists of 248 blinkers (including 21 traffic lights), 218 blocks, 163 beehives (including nine honey farms), 56 loaves, 39 boats, 10 ships, nine tubs, five ponds, four beacons, two toads, one barge, one eater 1 and one long boat.
+      //char *pattern = RULE "10001o!";    // Stabilizes at 544008 cells
+      //char *pattern = RULE "15366bo$15366bo$15364boo$15363bo$15363bo$15363bo$15363bo6$15393bo$" "15392boo$15390bobbo$$15390bobo$15391bo133$15568boo$15569boo$15569bo29$" "15554bo$15553bobo$15555bo$15556bo507$59722boo$59721boo$59722bo29$" "59737bo$59736bobo$59736bo$59735bo13907$bo3bo$bbobo$obbo$o$o21$33bo$32b" "o$31bo$32bo$33bo$29b3o!";       // Metacatacryst, exhibits quadratic growth.
 
       IFNOTEXIT (f = fmemopen ((void *) pattern, strlen (pattern), "r"), "Can not read pattern");
     }

@@ -48,33 +48,34 @@ typedef struct
 } Explorer;
 
 // Create a universe and return the pointer to it.
+// The rule of game of life B3/S23 is used by default.
 // Calls xintbig_printf_init () for convenience.
 Universe *universe_create (void);
 
-// Reinitialize a universe before reuse.
-void universe_reinitialize (Universe * pUniverse);
+// Set the rule which format must be "Bnnn/Snnn"
+int universe_set_BLE_rules (Universe * pUniverse, const char *rules);
 
 // Destroy a universe.
 void universe_destroy (Universe * pUniverse);
 
 // Add a cell in universe at position (x, y).
-// x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
+// x and y can be initialised with LL_TO_LLL (l) where l is an long long integer.
 void universe_cell_set (Universe * pUniverse, intbig_t x, intbig_t y);
 
 // Remove a cell in universe from position (x, y).
-// x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
+// x and y can be initialised with LL_TO_LLL (l) where l is an long long integer.
 void universe_cell_unset (Universe * pUniverse, intbig_t x, intbig_t y);
 
 // Check if a cell is set (returns 1) or unset (returns 0) at position (x, y) in universe.
-// x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
+// x and y can be initialised with LL_TO_LLL (l) where l is an long long integer.
 int universe_cell_is_set (Universe * pUniverse, intbig_t x, intbig_t y);
 
-// Initialize the universe from a RLE file f.
-// Returns the number of cells initialized in the universe.
+// Initialise the universe from a RLE file f.
+// Returns the number of cells initialised in the universe.
 // x and y are the coordinates of the North-West corner of the universe.
-// x and y can be initialized with LL_TO_LLL (l) where l is an long long integer.
-// header should be 1 if the RLE contains a header line (possibly precedeed by commented lines starting with #), 0 otherwise.
-uintbig_t universe_RLE_readfile (Universe * pUniverse, FILE * f, intbig_t x, intbig_t y, int header);
+// x and y can be initialised with LL_TO_LLL (l) where l is an long long integer.
+// header should be 1 if the RLE contains a header line (possibly preceded by commented lines starting with #), 0 otherwise.
+size_t universe_RLE_readfile (Universe * pUniverse, FILE * f, intbig_t x, intbig_t y, int header);
 
 // Explore all cells in window explorer.space.window at generation explorer.time.instant.
 // Returns the number of cells found in the window.

@@ -5,9 +5,9 @@
 #  include <stdlib.h>
 
 // Big integers are UBI_NB_BITS bits long.
-#  define UBI_NB_BITS 256
-#  define ULL_NB_BITS (sizeof (unsigned long long int) * 8)
-#  define UBI_LENGTH (UBI_NB_BITS / ULL_NB_BITS)
+#  define UBI_NB_BITS ((size_t) 256)
+#  define ULL_NB_BITS ((size_t) (sizeof (unsigned long long int) * 8))
+#  define UBI_LENGTH ((UBI_NB_BITS - 1) / ULL_NB_BITS + 1)
 
 //---------------------------------------------------
 // unsigned long long int

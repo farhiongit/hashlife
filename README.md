@@ -128,8 +128,8 @@ Macrocell
 - `universe_cell_set` add a cell into the universe at a given position at initial time 0.
 - `universe_cell_unset` removes a cell from the universe at a given position at initial time 0.
 - `universe_cell_is_set` controls the presence of a cell in the universe at a given position at initial time 0.
-- `universe_renitialize` empties universe for reuse.
-- `universe_RLE_readfile` reinitializes and reconfigures the initial time 0 of a universe from a given RLE file (see [Run Length Encoded](https://conwaylife.com/wiki/Run_Length_Encoded)).
+- `universe_set_BLE_rules` re-initialises and re-configures the initial time 0 of a universe for reuse and sets rule.
+- `universe_RLE_readfile` re initialises and re-configures the initial time 0 of a universe from a given RLE file (see [Run Length Encoded](https://conwaylife.com/wiki/Run_Length_Encoded)).
 - `universe_explore` find cells in a given region of space and at a given instant of time.
 
 ### Private functions

@@ -23,22 +23,28 @@
 #  define PRINT(...)
 #endif
 
-static unsigned char NB_BITS[UINT16_MAX + 1] = { 0 };
+typedef uint16_t neighbours_t;  // A cell has 0 to 8 neighbours.
+#define NB_MAX_NEIGHBOURS ((size_t) 8)
+#define ALL_NEIGHBOURS ((neighbours_t) ((1 << (NB_MAX_NEIGHBOURS + 1)) - 1))
+typedef uint8_t mc2x2_t;        // 4 bits are enough for a 2x2 macro-cell
+typedef uint16_t mc4x4_t;       // 16 bits are enough for a 4x4 macro-cell
+#define NB_MC4X4 ((size_t) (1 << (4 * 4)))      // Number of possible different 4x4 macro-cells (2 to the 16th).
+static unsigned char NB_BITS[NB_MC4X4] = { 0 };
 
 // The rules of the game of life are implemented in this function (and nowhere else).
 // [GOSPER] "Life is a two state, nine-neighborhood rule applied on an ordinary, two-dimensional grid"
 //          "(...) a 4 by 4 cell [which] doesn't know its RESULT, (...) computes it by brute force,
 //           , i.e. by applying the Life rule [4] to the nine-neighborhoods of each of its four central cells (bits)."
-static unsigned char
-next2x2 (uint16_t field4x4, unsigned char S, unsigned char B)
+static mc2x2_t
+next2x2 (mc4x4_t field4x4, neighbours_t S, neighbours_t B)
 {
   /* *INDENT-OFF* */
-  static struct { uint16_t N/*eighbours*/, C/*entral*/; } F[4] =
+  static struct { mc4x4_t N/*eighbours*/, C/*entral*/; } F[4] =
     {
-     {.N = 1 << 0 | 1 << 1 | 1 << 2 | 1 << 4 | 1 <<   6 | 1 <<   8 | 1 <<   9 | 1 << 0xa, .C = 1 <<   5},  // -> 0
-     {.N = 1 << 1 | 1 << 2 | 1 << 3 | 1 << 5 | 1 <<   7 | 1 <<   9 | 1 << 0xa | 1 << 0xb, .C = 1 <<   6},  // -> 1
-     {.N = 1 << 4 | 1 << 5 | 1 << 6 | 1 << 8 | 1 << 0xa | 1 << 0xc | 1 << 0xd | 1 << 0xe, .C = 1 <<   9},  // -> 2
-     {.N = 1 << 5 | 1 << 6 | 1 << 7 | 1 << 9 | 1 << 0xb | 1 << 0xd | 1 << 0xe | 1 << 0xf, .C = 1 << 0xa},  // -> 3
+     {.N = 1 << 0x0 | 1 << 0x1 | 1 << 0x2 | 1 << 0x4 | 1 << 0x6 | 1 << 0x8 | 1 << 0x9 | 1 << 0xa, .C = 1 << 0x5},  // -> 0
+     {.N = 1 << 0x1 | 1 << 0x2 | 1 << 0x3 | 1 << 0x5 | 1 << 0x7 | 1 << 0x9 | 1 << 0xa | 1 << 0xb, .C = 1 << 0x6},  // -> 1
+     {.N = 1 << 0x4 | 1 << 0x5 | 1 << 0x6 | 1 << 0x8 | 1 << 0xa | 1 << 0xc | 1 << 0xd | 1 << 0xe, .C = 1 << 0x9},  // -> 2
+     {.N = 1 << 0x5 | 1 << 0x6 | 1 << 0x7 | 1 << 0x9 | 1 << 0xb | 1 << 0xd | 1 << 0xe | 1 << 0xf, .C = 1 << 0xa},  // -> 3
     };
   /* *INDENT-ON* */
 
@@ -50,7 +56,7 @@ next2x2 (uint16_t field4x4, unsigned char S, unsigned char B)
                  (xxxx)    (cdef)
   */
   /* *INDENT-ON* */
-  unsigned char hr = 0;
+  mc2x2_t hr = 0;
   for (size_t i = 0; i < sizeof (F) / sizeof (*F); i++)
     if (((field4x4 & F[i].C) ?  // Is the central cell of the all nine field (5, 6, 9 or a) alive ?
          S :                    // If alive, then, might survive ;
@@ -125,6 +131,9 @@ static struct sMacrocell _on = { {{1}}, {{0}}, {0}, 0 };        // A leaf (cell 
 
 #define QUERY (&_query)
 static struct sMacrocell _query = { 0 };        // A fake leaf
+
+// OFF is an empty region.
+#define OFF ((MacrocellId) 0)
 
 static uintbig_t
 macrocell_get_population (MacrocellId m, unsigned int depth)
@@ -354,10 +363,19 @@ typedef struct sUniverse
   /* *INDENT-OFF* */
   LIST (Level) * listOfLevels;   // Register of macrocells at every level of the Universe.
   /* *INDENT-ON* */
-  unsigned char RESULT4x4[UINT16_MAX + 1];      // RESULT for 4x4 macro-cells for rule B/S.
-  unsigned char S;              // Pattern for survival.
-  unsigned char B;              // Pattern for birth.
+  mc2x2_t RESULT4x4[NB_MC4X4];  // RESULT is a 2x2 macro-cell generated from a 4x4 macro-cells with rules B/S.
+  neighbours_t S;               // Pattern for survival. A cell has 8 neighbours.
+  neighbours_t B;               // Pattern for birth.
 } Universe;
+
+static void
+universe_set_rules (Universe *pUniverse, neighbours_t B, neighbours_t S)
+{
+  pUniverse->B = B;
+  pUniverse->S = S;
+  for (size_t i = 0; i < sizeof (pUniverse->RESULT4x4) / sizeof (*(pUniverse->RESULT4x4)); i++)
+    pUniverse->RESULT4x4[i] = next2x2 ((mc4x4_t) i, pUniverse->S, pUniverse->B);
+}
 
 static void
 universe_init (Universe *pUniverse)
@@ -366,11 +384,6 @@ universe_init (Universe *pUniverse)
 
   static Universe UNIVERSE_INITIALIZER = { 0 };
   *pUniverse = UNIVERSE_INITIALIZER;
-  // The rule of game of life B3/S23 is used by default.
-  pUniverse->S = 1 << 2 | 1 << 3;       // Pattern for survival S23 (if 2 ou 3 neighbours).
-  pUniverse->B = 1 << 3;        // Pattern for birth B3 (if 3 neighbours).
-  for (size_t i = 0; i < sizeof (pUniverse->RESULT4x4) / sizeof (*(pUniverse->RESULT4x4)); i++)
-    pUniverse->RESULT4x4[i] = next2x2 ((uint16_t) i, pUniverse->S, pUniverse->B);
 }
 
 Universe *
@@ -378,14 +391,17 @@ universe_create (void)
 {
   xintbig_printf_init ();
   Universe *pUniverse = calloc (1, sizeof (*pUniverse));
-  if (pUniverse)
-    universe_init (pUniverse);
+  universe_init (pUniverse);
+  // The rule of game of life B3/S23 is used by default.
+  universe_set_rules (pUniverse, 1 << 3 /* Pattern for birth B3 (if 3 neighbours) */ , 1 << 2 | 1 << 3 /* Pattern for survival S23 (if 2 ou 3 neighbours) */ );
   return pUniverse;
 }
 
-void
+static void
 universe_reinitialize (Universe *pUniverse)
 {
+  neighbours_t B = pUniverse->B;
+  neighbours_t S = pUniverse->S;
   if (pUniverse->listOfLevels)
   {
     while (LIST_SIZE (pUniverse->listOfLevels))
@@ -406,6 +422,7 @@ universe_reinitialize (Universe *pUniverse)
     pUniverse->listOfLevels = 0;
   }
   universe_init (pUniverse);
+  universe_set_rules (pUniverse, B, S);
 }
 
 void
@@ -746,7 +763,7 @@ universe_get_RESULT (Universe *pUniverse, MacrocellId m, unsigned int height)
 static int
 universe_is_closed (Universe *pUniverse)
 {
-  /* A universe is NOT closed (therefore open) if surrouded by empty space (.):
+  /* A universe is NOT closed (therefore open) if it is surrounded by empty space (.):
      ........
      ........
      ..xxxx..
@@ -863,13 +880,13 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
   uintbig_t y = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), sy);
   MacrocellId oldleaf = 0;
   ASSERT (!leaf || (!leaf->quadrant[NW] && !leaf->quadrant[NE] && !leaf->quadrant[SW] && !leaf->quadrant[SE])); // leaf is a leaf
-  if ((leaf == 0 || leaf == QUERY) && !universe_contains (pUniverse, sx, sy))   // Cannot remove a cell from or query an unexisting position
+  if ((leaf == OFF || leaf == QUERY) && !universe_contains (pUniverse, sx, sy)) // Cannot remove a cell from or query an unexisting position
     return 0;
   // Insert the cell in the tree
   else if (pUniverse->root == 0)
   {
     // If the universe is empty, create it ex nihilo.
-    ASSERT (leaf);
+    ASSERT (leaf != OFF);
     pUniverse->height = 1;
     pUniverse->x0 = uintbig_shiftleft (uintbig_shiftright (x, pUniverse->height), pUniverse->height);
     pUniverse->y0 = uintbig_shiftleft (uintbig_shiftright (y, pUniverse->height), pUniverse->height);
@@ -892,7 +909,7 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
       0
     };
     l1.macrocells = SET_CREATE (MacrocellId, macrocell_lt);
-    pUniverse->root = macrocell_patternify (pUniverse->root, l1.macrocells);
+    pUniverse->root = macrocell_patternify (pUniverse->root, l1.macrocells);    // Could return OFF
     ASSERT (LIST_SIZE (pUniverse->listOfLevels) == 0);
     LIST_APPEND (pUniverse->listOfLevels, l0);
     LIST_APPEND (pUniverse->listOfLevels, l1);
@@ -988,7 +1005,7 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     free (path);
   }                             // if (pUniverse->height || pUniverse->x0 != x || pUniverse->y0 != y)
 
-  if (!pUniverse->root)
+  if (pUniverse->root == OFF)
     universe_reinitialize (pUniverse);
   return oldleaf;
 }
@@ -1002,7 +1019,7 @@ universe_cell_set (Universe *pUniverse, intbig_t x, intbig_t y)
 void
 universe_cell_unset (Universe *pUniverse, intbig_t x, intbig_t y)
 {
-  universe_cell_accessor (pUniverse, x, y, 0);
+  universe_cell_accessor (pUniverse, x, y, OFF);
 }
 
 int
@@ -1011,18 +1028,47 @@ universe_cell_is_set (Universe *pUniverse, intbig_t x, intbig_t y)
   return universe_cell_accessor (pUniverse, x, y, QUERY) ? 1 : 0;
 }
 
-#define IFNOTEXIT(cond, ...) \
+#define IF_NOT_RETURN(cond, ...) \
 do { \
   if (!(cond)) \
   { \
     fprintf (stderr, "" __VA_ARGS__); \
     fprintf (stderr, "\n"); \
-    exit (EXIT_FAILURE); \
+    return 0; \
   } \
 } while(0)
 
-uintbig_t
-universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int header)
+int
+universe_set_BLE_rules (Universe *pUniverse, const char *rules)
+{
+  universe_reinitialize (pUniverse);
+  regex_t regrule = { 0 };
+  IF_NOT_RETURN (regcomp (&regrule, "B([[:digit:]]+)/S([[:digit:]]+)", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE");
+  regmatch_t matchBS[3];
+  IF_NOT_RETURN (regexec (&regrule, rules,
+                          sizeof (matchBS) / sizeof (*matchBS), matchBS, REG_NOTBOL | REG_NOTEOL) == 0, "Invalid format. Format 'Bnnn/Snnn' expected, n in [0 ; 8].");
+
+  neighbours_t B, S;
+  B = S = 0;
+  for (const char *c = rules + matchBS[1].rm_so; c < rules + matchBS[1].rm_eo; c++)
+  {
+    IF_NOT_RETURN (isdigit (*c) && *c != '0', "Invalid number '%c' for rule B", *c);
+    B |= ALL_NEIGHBOURS & (neighbours_t) (1 << (*c - '0'));
+  }
+  for (const char *c = rules + matchBS[2].rm_so; c < rules + matchBS[2].rm_eo; c++)
+  {
+    IF_NOT_RETURN (isdigit (*c), "Invalid number '%c' for rule S", *c);
+    S |= ALL_NEIGHBOURS & (neighbours_t) (1 << (*c - '0'));
+  }
+  // Take B and S into account.
+  universe_set_rules (pUniverse, B, S);
+  regfree (&regrule);
+
+  return 1;
+}
+
+size_t
+universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, int header)
 {
   universe_reinitialize (pUniverse);
 
@@ -1040,44 +1086,23 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int
     }
     while (line && *line == '#');
 
-    IFNOTEXIT (line, "Missing header line");
+    IF_NOT_RETURN (line, "Missing header line");
 
     regex_t regvar = { 0 };
-    IFNOTEXIT (regcomp (&regvar, " *([[:alnum:]]+) *= *([^ ,]+) *,?", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE. Comma separated parameters of the form 'var=value' expected.");
+    IF_NOT_RETURN (regcomp (&regvar, " *([[:alnum:]]+) *= *([^ ,]+) *,?", REG_EXTENDED | REG_ICASE) == 0,
+                   "Invalid ERE. Comma separated parameters of the form 'var=value' expected.");
     regmatch_t match[3];
     for (size_t offset = 0; regexec (&regvar, line + offset, sizeof (match) / sizeof (*match), match, REG_NOTBOL | REG_NOTEOL) == 0; offset += (size_t) match[0].rm_eo)
-    {
       if (!strncmp ("rule", line + offset + match[1].rm_so, (size_t) (match[1].rm_eo - match[1].rm_so)))
-      {
-        regex_t regrule = { 0 };
-        IFNOTEXIT (regcomp (&regrule, "B([[:digit:]]+)/S([[:digit:]]+)", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE");
-        regmatch_t matchBS[3];
-        IFNOTEXIT (regexec (&regrule, line + offset + match[2].rm_so,
-                            sizeof (matchBS) / sizeof (*matchBS), matchBS, REG_NOTBOL | REG_NOTEOL) == 0, "Invalid format for 'rule'. Format 'rule=Bnnn/Snnn' expected.");
-
-        pUniverse->B = pUniverse->S = 0;
-        for (const char *c = line + offset + match[2].rm_so + matchBS[1].rm_so; c < line + offset + match[2].rm_so + matchBS[1].rm_eo; c++)
-        {
-          IFNOTEXIT (isdigit (*c), "Invalid number '%c' for rule B", *c);
-          pUniverse->B |= (unsigned char) (1 << (*c - '0'));
-        }
-        for (const char *c = line + offset + match[2].rm_so + matchBS[2].rm_so; c < line + offset + match[2].rm_so + matchBS[2].rm_eo; c++)
-        {
-          IFNOTEXIT (isdigit (*c), "Invalid number '%c' for rule S", *c);
-          pUniverse->S |= (unsigned char) (1 << (*c - '0'));
-        }
-        regfree (&regrule);
-      }
-    }
-    free (line);
+        IF_NOT_RETURN (universe_set_BLE_rules (pUniverse, line + offset + match[2].rm_so), "Invalid rule '%s'", line + offset);
     regfree (&regvar);
+    free (line);
   }
 
-  // Take B and S into account.
-  for (size_t i = 0; i < sizeof (pUniverse->RESULT4x4) / sizeof (*(pUniverse->RESULT4x4)); i++)
-    pUniverse->RESULT4x4[i] = next2x2 ((uint16_t) i, pUniverse->S, pUniverse->B);
-
+  size_t nb = 0;
   long unsigned int counter = 1;
+  intbig_t x = x0;
+  intbig_t y = y0;
   for (int c = 0; (c = fgetc (f)) && c != '!' && c != EOF;)
     switch (c)
     {
@@ -1087,8 +1112,9 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int
       case 'x':                // alive cell
         for (; counter >= 1; counter--)
         {
+          nb++;
           universe_cell_set (pUniverse, x, y);
-          ASSERT (intbig_cmp (x, INTBIG_MAX) < 0);
+          IF_NOT_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
           x = intbig_add (x, LL_TO_LLL (1));
         }
         counter = 1;
@@ -1098,7 +1124,7 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int
       case 'B':                // dead cell
         for (; counter >= 1; counter--)
         {
-          ASSERT (intbig_cmp (x, INTBIG_MAX) < 0);
+          IF_NOT_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
           x = intbig_add (x, LL_TO_LLL (1));
         }
         counter = 1;
@@ -1106,10 +1132,10 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int
       case '$':                // end of line
         for (; counter >= 1; counter--)
         {
-          ASSERT (intbig_cmp (y, INTBIG_MIN) > 0);
+          IF_NOT_RETURN (intbig_cmp (y, INTBIG_MIN) > 0, "Reached the final frontier of the universe !");
           y = intbig_sub (y, LL_TO_LLL (1));
         }
-        x = INTBIG_ZERO;
+        x = x0;
         counter = 1;
         break;
       default:
@@ -1117,14 +1143,14 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x, intbig_t y, int
         {
           ungetc (c, f);
           errno = 0;
-          IFNOTEXIT (fscanf (f, "%lu", &counter) == 1, "Invalid character '%c'", c);
+          IF_NOT_RETURN (fscanf (f, "%lu", &counter) == 1, "Invalid character '%c'", c);
         }
         else
-          IFNOTEXIT (isblank (c) || iscntrl (c), "Invalid character '%c'", c);
+          IF_NOT_RETURN (isblank (c) || iscntrl (c), "Invalid character '%c'", c);
         break;
     }
 
-  return macrocell_get_population (pUniverse->root, 1);
+  return nb;
 }
 
 static int
@@ -1385,6 +1411,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
         r2.ymin = uintbig_add (offset.ymin, quarter_size);
         break;
       default:
+        break;
     }
 
     if (universe_show_RESULT (pUniverse, mtemp_5_9[u], r2, pE, found_cells, already_explored))  // height - 2
@@ -1487,6 +1514,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
         r2.ymin = uintbig_add (r2.ymin, quarter_size);
         break;
       default:
+        break;
     }
     universe_show_RESULT (pUniverse, mtemp, r2, pE, found_cells, already_explored);     // height - 2
   }                             // for (Quadrant u = 0; u < NB_QUADRANTS; u++)
@@ -1532,7 +1560,6 @@ universe_explore (Universe *pUniverse, Explorer explorer)
   SET (XYPos) * found_cells = SET_CREATE (XYPos, xypos_lt);
   SET (SpaceTimeRegion) * already_explored = SET_CREATE (SpaceTimeRegion);
 
-  uintbig_t population;
   if (pUniverse->root == 0)
   {                             /* do nothing */
   }
@@ -1544,7 +1571,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_shiftright (t, 1))
       min_height++;
 
-    // [GOSPER] "outermost SHOW method ensures that the configuration being probed is surroundedby enough vacuum so that its
+    // [GOSPER] "outermost SHOW method ensures that the configuration being probed is surrounded by enough vacuum so that its
     //           future cone entirely contains the probe window, no matter how large or remote in space or time. Thus,
     //           there are never any edge effects."
     // Make sure the universe m is high enough and surrounded by sufficient empty space so that its horizon is not reachable at light speed.
@@ -1554,7 +1581,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     uintbig_t quarter_size = uintbig_shiftleft (ULL_TO_ULLL (1), pUniverse->height - 2);
     ASSERT (uintbig_cmp (explorer.spacetime.time.instant, quarter_size) <= 0);
 
-    // Compute the forecast of the whole universe and its reachable neighborhood (ie within reachable distance at speed of light).
+    // Compute the forecast of the whole universe and its reachable neighbourhood (ie within reachable distance at speed of light).
     // Compute 4 RESULTs, S/4 generations ahead of m, where S is the size of m.
     // Macrocell m (. and x), of size S  ->  RESULTs, of size S/2, S/4 generations ahead of m.
 
@@ -1616,6 +1643,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
           ymin = uintbig_sub (pUniverse->y0, quarter_size);
           break;
         default:
+          break;
       }
       PRINT ("Explore quadrant %i...\n", u + 1);
       SpaceTimeRegion r = {.xmin = xmin,.ymin = ymin,.tbase = UINTBIG_ZERO,.height = pUniverse->height
@@ -1624,7 +1652,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     }
   }
 
-  population = ULL_TO_ULLL (SET_SIZE (found_cells));
+  uintbig_t population = ULL_TO_ULLL (SET_SIZE (found_cells));
   SET_TRAVERSE (found_cells, print_cell, &explorer);
   SET_DESTROY (found_cells);
   SET_DESTROY (already_explored);
