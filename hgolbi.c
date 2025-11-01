@@ -135,19 +135,15 @@ static struct sMacrocell _query = { 0 };        // A fake leaf
 // OFF is an empty region.
 #define OFF ((MacrocellId) 0)
 
-static uintbig_t
-macrocell_get_population (MacrocellId m, unsigned int depth)
+static void
+macrocell_set_population (MacrocellId m)
 {
-  if (m == 0)
-    return UINTBIG_ZERO;
-  if (depth == 0)
-    return m->population;
-
-  uintbig_t nb = UINTBIG_ZERO;
+  if (m == OFF)
+    return;
+  m->population = UINTBIG_ZERO;
   for (Quadrant q = 0; q < NB_QUADRANTS; q++)
-    nb = uintbig_add (nb, macrocell_get_population (m->quadrant[q], depth - 1));
-
-  return nb;
+    if (m->quadrant[q] != OFF)
+      m->population = uintbig_add (m->population, m->quadrant[q]->population);
 }
 
 static int
@@ -170,6 +166,7 @@ typedef struct
   uintbig_t xmin, ymin, tbase;
 } SpaceTimeRegion;
 
+#include "set_impl.h"
 DECLARE_SET (SpaceTimeRegion);
 DEFINE_OPERATORS (SpaceTimeRegion);
 DEFINE_SET (SpaceTimeRegion);
@@ -192,7 +189,7 @@ show_overlapping (unsigned int height, uintbig_t tbase, uintbig_t instant, uintb
   PRINT (" (t) (%'U ^ [%'U ; %'U])\n", instant, tbase, uintbig_add (tbase, quarter_size));
 }
 #else
-#  define show_overlapping(...)  do {} while (0)
+#  define show_overlapping(...)
 #endif
 
 static int
@@ -304,7 +301,7 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
   {
     // If the macrocell m is an empty region, it can be forgotten.
     free (m);
-    return 0;
+    return OFF;
   }
   else if ((node = SET_FIND (set, m)))
   {
@@ -321,13 +318,13 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
     }
     return *SNODE_KEY (node);   // The previously created macrocell m is aggregated with a preexisting one.
   }
-  else                          // newmc is not anywhere else in the universe
+  else                          // m is not anywhere else in the universe
   {
     // If the macrocell is not an empty region and is not registered yet, it must be registered in the set.
     // Add it from the path into the set of patterns.
     m->result = QUERY;          // Makes sure that an extraneous result is not registered.
     m->nb_instances = ULL_TO_ULLL (1);
-    m->population = macrocell_get_population (m, 1);
+    macrocell_set_population (m);
     SET_ADD (set, m);           // register the macrocell in the ordered set.
     return m;
   }
@@ -962,7 +959,7 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     }
 
     path[0].newmc->quadrant[path[0].q] = leaf;
-    path[0].newmc->population = macrocell_get_population (path[0].newmc, 1);
+    macrocell_set_population (path[0].newmc);
     // Phase 3: space contraction.
     // Bottom to top : aggregate identical macrocells of the same height, from level 1 to level pUniverse->height - 1
     // Level 0 contains only the static state (ON) and does not need to be aggregated.
@@ -990,7 +987,7 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
         pUniverse->root = macrocell_patternify (path[h - 1].newmc, l->macrocells);
       // Update the population of the new cell
       if (h < pUniverse->height)
-        path[h].newmc->population = macrocell_get_population (path[h].newmc, 1);
+        macrocell_set_population (path[h].newmc);
 
       // if oldmc is not in the universe anymore, it can be forgotten.
       if (path[h - 1].oldmc && uintbig_is_zero (path[h - 1].oldmc->nb_instances))
@@ -1558,7 +1555,6 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     explorer.extractor.preaction (pUniverse, explorer.spacetime, explorer.extractor.context);
 
   SET (XYPos) * found_cells = SET_CREATE (XYPos, xypos_lt);
-  SET (SpaceTimeRegion) * already_explored = SET_CREATE (SpaceTimeRegion);
 
   if (pUniverse->root == 0)
   {                             /* do nothing */
@@ -1567,6 +1563,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     macrocell_get_cells_in_window (pUniverse->root, pUniverse->height, pUniverse->x0, pUniverse->y0, explorer.spacetime.space.window, found_cells);
   else
   {
+    SET (SpaceTimeRegion) * already_explored = SET_CREATE (SpaceTimeRegion);
     unsigned int min_height = 2;
     for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_shiftright (t, 1))
       min_height++;
@@ -1650,12 +1647,12 @@ universe_explore (Universe *pUniverse, Explorer explorer)
       };
       universe_show_RESULT (pUniverse, shifted[u], r, &explorer, found_cells, already_explored);
     }
-  }
+    SET_DESTROY (already_explored);
+  }                             // if (!uintbig_is_zero (explorer.spacetime.time.instant))
 
   uintbig_t population = ULL_TO_ULLL (SET_SIZE (found_cells));
   SET_TRAVERSE (found_cells, print_cell, &explorer);
   SET_DESTROY (found_cells);
-  SET_DESTROY (already_explored);
 
   if (explorer.extractor.postaction)
     explorer.extractor.postaction (pUniverse, explorer.spacetime, population, explorer.extractor.context);

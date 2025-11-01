@@ -12,7 +12,8 @@ infos: bitl.o hgolbi.o
 	nm -g --defined-only ./bitl.o
 
 .PHONY: TU
-TU: hgolbi_example
+TU: bitl hgolbi_example
+	./bitl
 	time -v ./hgolbi_example -U -x-9_10,3_4 -y-5_6,7_8 -t1_0 -t2_0 </dev/null
 
 bitl.o: CFLAGS += -Wno-format -Wno-format-security
