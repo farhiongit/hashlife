@@ -5,9 +5,9 @@
 #  include <stdlib.h>
 
 // Big integers are UBI_NB_BITS bits long.
-#  define UBI_NB_BITS ((size_t) 256)
+#  define UBI_NB_BITS (UBI_LENGTH * ULL_NB_BITS)
 #  define ULL_NB_BITS ((size_t) (sizeof (unsigned long long int) * 8))
-#  define UBI_LENGTH ((UBI_NB_BITS - 1) / ULL_NB_BITS + 1)
+#  define UBI_LENGTH  ((size_t) 4)
 
 //---------------------------------------------------
 // unsigned long long int
@@ -60,7 +60,7 @@ uintbig_t uintbig_shiftright (uintbig_t a, size_t shift);
 //---------------------------------------------------
 // signed long long int
 //---------------------------------------------------
-typedef uintbig_t intbig_t;
+typedef uintbig_t intbig_t;  // array[0] is the lower part ; the highest bit of array[3] is the bit sign.
 
 // 0.
 extern intbig_t INTBIG_ZERO;
@@ -87,7 +87,12 @@ intbig_t intbig_opposite (intbig_t a);
 intbig_t intbig_abs (intbig_t a);
 
 // Converts a long long integer into a signed big integer.
-intbig_t LL_TO_LLL (signed long long int ll);
+#define LL_TO_LLL(ll) (intbig_t){ { \
+                                    (ll) >= 0 ? (long long unsigned int)(ll) : ll == LLONG_MIN ? (long long unsigned int)0 : (~(long long unsigned int)(-ll) + 1), \
+                                    (ll) >= 0 ? (long long unsigned int)0 : ~(long long unsigned int)0, \
+                                    (ll) >= 0 ? (long long unsigned int)0 : ~(long long unsigned int)0, \
+                                    (ll) >= 0 ? (long long unsigned int)0 : ~(long long unsigned int)0, \
+                                  } }
 
 // Converts an unsigned big integer into a signed big integer (with possible loss).
 intbig_t ULLL_TO_LLL (uintbig_t ua);

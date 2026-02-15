@@ -1025,7 +1025,7 @@ universe_cell_is_set (Universe *pUniverse, intbig_t x, intbig_t y)
   return universe_cell_accessor (pUniverse, x, y, QUERY) ? 1 : 0;
 }
 
-#define IF_NOT_RETURN(cond, ...) \
+#define IF_NOT_THEN_RETURN(cond, ...) \
 do { \
   if (!(cond)) \
   { \
@@ -1040,21 +1040,21 @@ universe_set_BLE_rules (Universe *pUniverse, const char *rules)
 {
   universe_reinitialize (pUniverse);
   regex_t regrule = { 0 };
-  IF_NOT_RETURN (regcomp (&regrule, "B([[:digit:]]+)/S([[:digit:]]+)", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE");
+  IF_NOT_THEN_RETURN (regcomp (&regrule, "B([[:digit:]]+)/S([[:digit:]]+)", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE");
   regmatch_t matchBS[3];
-  IF_NOT_RETURN (regexec (&regrule, rules,
+  IF_NOT_THEN_RETURN (regexec (&regrule, rules,
                           sizeof (matchBS) / sizeof (*matchBS), matchBS, REG_NOTBOL | REG_NOTEOL) == 0, "Invalid format. Format 'Bnnn/Snnn' expected, n in [0 ; 8].");
 
   neighbours_t B, S;
   B = S = 0;
   for (const char *c = rules + matchBS[1].rm_so; c < rules + matchBS[1].rm_eo; c++)
   {
-    IF_NOT_RETURN (isdigit (*c) && *c != '0', "Invalid number '%c' for rule B", *c);
+    IF_NOT_THEN_RETURN (isdigit (*c) && *c != '0', "Invalid number '%c' for rule B", *c);
     B |= ALL_NEIGHBOURS & (neighbours_t) (1 << (*c - '0'));
   }
   for (const char *c = rules + matchBS[2].rm_so; c < rules + matchBS[2].rm_eo; c++)
   {
-    IF_NOT_RETURN (isdigit (*c), "Invalid number '%c' for rule S", *c);
+    IF_NOT_THEN_RETURN (isdigit (*c), "Invalid number '%c' for rule S", *c);
     S |= ALL_NEIGHBOURS & (neighbours_t) (1 << (*c - '0'));
   }
   // Take B and S into account.
@@ -1083,15 +1083,15 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
     }
     while (line && *line == '#');
 
-    IF_NOT_RETURN (line, "Missing header line");
+    IF_NOT_THEN_RETURN (line, "Missing header line");
 
     regex_t regvar = { 0 };
-    IF_NOT_RETURN (regcomp (&regvar, " *([[:alnum:]]+) *= *([^ ,]+) *,?", REG_EXTENDED | REG_ICASE) == 0,
+    IF_NOT_THEN_RETURN (regcomp (&regvar, " *([[:alnum:]]+) *= *([^ ,]+) *,?", REG_EXTENDED | REG_ICASE) == 0,
                    "Invalid ERE. Comma separated parameters of the form 'var=value' expected.");
     regmatch_t match[3];
     for (size_t offset = 0; regexec (&regvar, line + offset, sizeof (match) / sizeof (*match), match, REG_NOTBOL | REG_NOTEOL) == 0; offset += (size_t) match[0].rm_eo)
       if (!strncmp ("rule", line + offset + match[1].rm_so, (size_t) (match[1].rm_eo - match[1].rm_so)))
-        IF_NOT_RETURN (universe_set_BLE_rules (pUniverse, line + offset + match[2].rm_so), "Invalid rule '%s'", line + offset);
+        IF_NOT_THEN_RETURN (universe_set_BLE_rules (pUniverse, line + offset + match[2].rm_so), "Invalid rule '%s'", line + offset);
     regfree (&regvar);
     free (line);
   }
@@ -1111,7 +1111,7 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
         {
           nb++;
           universe_cell_set (pUniverse, x, y);
-          IF_NOT_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
+          IF_NOT_THEN_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
           x = intbig_add (x, LL_TO_LLL (1));
         }
         counter = 1;
@@ -1121,7 +1121,7 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
       case 'B':                // dead cell
         for (; counter >= 1; counter--)
         {
-          IF_NOT_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
+          IF_NOT_THEN_RETURN (intbig_cmp (x, INTBIG_MAX) < 0, "Reached the final frontier of the universe !");
           x = intbig_add (x, LL_TO_LLL (1));
         }
         counter = 1;
@@ -1129,7 +1129,7 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
       case '$':                // end of line
         for (; counter >= 1; counter--)
         {
-          IF_NOT_RETURN (intbig_cmp (y, INTBIG_MIN) > 0, "Reached the final frontier of the universe !");
+          IF_NOT_THEN_RETURN (intbig_cmp (y, INTBIG_MIN) > 0, "Reached the final frontier of the universe !");
           y = intbig_sub (y, LL_TO_LLL (1));
         }
         x = x0;
@@ -1140,10 +1140,10 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
         {
           ungetc (c, f);
           errno = 0;
-          IF_NOT_RETURN (fscanf (f, "%lu", &counter) == 1, "Invalid character '%c'", c);
+          IF_NOT_THEN_RETURN (fscanf (f, "%lu", &counter) == 1, "Invalid character '%c'", c);
         }
         else
-          IF_NOT_RETURN (isblank (c) || iscntrl (c), "Invalid character '%c'", c);
+          IF_NOT_THEN_RETURN (isblank (c) || iscntrl (c), "Invalid character '%c'", c);
         break;
     }
 

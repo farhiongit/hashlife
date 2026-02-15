@@ -5,7 +5,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include "bitl.h"
 #include "hgolbi.h"
+#include "grid_type.h"  // for group_bfs.c
+#include "group_bfs.c"
+#include "map.h"
 
 #define IFNOTEXIT(cond, ...) \
 do { \
@@ -18,20 +22,15 @@ do { \
 } while(0)
 
 static void
-preaction (Universe *universe, SpaceTime st, void *arg)
-{
-  (void) arg;
-  (void) universe;
-  printf ("Cells in universe within window [%1$+'V ; %2$+'V] x [%3$+'V ; %4$+'V] at generation %5$'U:\n",
-          st.space.window.NWvertex.x, st.space.window.SEvertex.x, st.space.window.NWvertex.y, st.space.window.SEvertex.y, st.time.instant);
-}
-
-static void
 extractor (Universe *universe, SpaceTime st, intbig_t x, intbig_t y, void *arg)
 {
   (void) arg;
   (void) universe;
-  printf ("- cell at position (%+'12V, %+'12V) at time %'12U\n", x, y, st.time.instant);
+  (void)st;
+  Point *p = malloc (sizeof (*p));
+  *p = (Point){ x, y };
+  if (!map_insert_data (arg, p))
+    free (p);
 }
 
 static void
@@ -39,8 +38,11 @@ postaction (Universe *universe, SpaceTime st, uintbig_t numcells, void *arg)
 {
   (void) arg;
   (void) universe;
-  printf ("There are %1$'U cells in universe within window [%2$+'V ; %3$+'V] x [%4$+'V ; %5$+'V] at generation %6$'U.\n",
-          numcells, st.space.window.NWvertex.x, st.space.window.SEvertex.x, st.space.window.NWvertex.y, st.space.window.SEvertex.y, st.time.instant);
+  map *groups = map_create (0, 0, 0, 0);
+  printf ("There are %1$'U cells in universe at generation %2$'U in %3$zu groups.\n", numcells, st.time.instant, grid_to_groups (arg, groups));
+  map_traverse (groups, display_group, 0, 0, 0);
+  map_traverse (groups, MAP_REMOVE_ALL, free_group, 0, 0);
+  map_destroy (groups);
 }
 
 #define EXPLORE(mytime)\
@@ -56,9 +58,9 @@ TU (void)
   IFNOTEXIT (pUniverse, "Memory allocation error.");
 
   Explorer e = { 0 };
-  e.extractor.preaction = preaction;
   e.extractor.foreach = extractor;
   e.extractor.postaction = postaction;
+  e.extractor.context = map_create (0, p_comparator, 0, 1);
 
   // Glider
   universe_cell_set (pUniverse, LL_TO_LLL (0), LL_TO_LLL (0));
@@ -80,6 +82,8 @@ TU (void)
   EXPLORE (ULL_TO_ULLL (20000));
   EXPLORE (ULL_TO_ULLL (20000000));
   EXPLORE (ULL_TO_ULLL (ULONG_MAX));
+
+  map_destroy (e.extractor.context);
   universe_destroy (pUniverse);
 }
 
@@ -186,13 +190,13 @@ main (int argc, char *const argv[])
     }
   }
 
-  printf ("%'U cells have been read from the RLE pattern.\n", universe_RLE_readfile (pUniverse, f, INTBIG_ZERO, INTBIG_ZERO, 1));
+  printf ("%'zu cells have been read from the RLE pattern.\n", universe_RLE_readfile (pUniverse, f, INTBIG_ZERO, INTBIG_ZERO, 1));
   fclose (f);
 
   Explorer e = { 0 };
-  e.extractor.preaction = preaction;
   e.extractor.foreach = extractor;
   e.extractor.postaction = postaction;
+  e.extractor.context = map_create (0, p_comparator, 0, 1);
   universe_explore (pUniverse, e);
 
   for (size_t i = 0; i < nb_sp; i++)
@@ -202,6 +206,7 @@ main (int argc, char *const argv[])
   }
   free (sp);
 
+  map_destroy (e.extractor.context);
   universe_destroy (pUniverse);
   printf ("Done.\n");
 

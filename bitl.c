@@ -242,15 +242,6 @@ intbig_abs (intbig_t a)
 }
 
 intbig_t
-LL_TO_LLL (signed long long int ll)
-{
-  if (ll >= 0)
-    return ULL_TO_ULLL ((long long unsigned int) ll);
-  else
-    return intbig_opposite (ULL_TO_ULLL ((long long unsigned int) (-ll)));
-}
-
-intbig_t
 ULLL_TO_LLL (uintbig_t ua)
 {
   // Might truncate.
@@ -348,9 +339,9 @@ intbig_to_##name (FILE * f, intbig_t a, char flag_sign, char flag_group)  \
     ret += printer (f, "%c", '-');                            \
     a = intbig_opposite (a);                                  \
   }                                                           \
-  else if (intbig_is_zero (a) || flag_sign == ' ')            \
+  else if (flag_sign == ' ')                                  \
     ret += printer (f, " ");                                  \
-  else if (flag_sign == '+')                                  \
+  else if (flag_sign == '+' && !intbig_is_zero (a))           \
     ret += printer (f, "+");                                  \
                                                               \
   ret += uintbig_to_##name (f, a, flag_group);                \
@@ -499,6 +490,10 @@ main (void)
   PS (sa = intbig_opposite (sa));
 
   PS (sa = LL_TO_LLL (-1LL));
+  PS (sa = intbig_opposite (sa));
+  PS (sa = intbig_opposite (sa));
+
+  PS (sa = LL_TO_LLL (LLONG_MIN));
   PS (sa = intbig_opposite (sa));
   PS (sa = intbig_opposite (sa));
 
