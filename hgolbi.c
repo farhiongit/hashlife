@@ -12,12 +12,14 @@
 #include <regex.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <errno.h>
 #include "bitl.h"
 #include "hgolbi.h"
+#include "map.h"
 
 #ifdef DEBUG
-#  define ASSERT(...) do { if (!(__VA_ARGS__)) { fprintf (stderr, "Asserton is false at line %i.\n", __LINE__); abort(); } } while (0)
-#  define PRINT(...) do { fprintf (stderr, __VA_ARGS__); } while (0)
+#  define ASSERT(...) do { if (!(__VA_ARGS__)) { fprintf (stderr, "Asserton is false at line %i.\n", __LINE__); fflush (stderr); abort(); } } while (0)
+#  define PRINT(...) do { fprintf (stderr, __VA_ARGS__); fflush (stderr); } while (0)
 #else
 #  define ASSERT(...)
 #  define PRINT(...)
@@ -107,19 +109,20 @@ struct sMacrocell
   MacrocellId result;           // RESULT for the macrocell.
 };
 
-// (1) A hash mecanism. The Macrocell comparator is a perfect hash function for the hash-mecanism.
+// (1) A hash mecanism. The Macrocell comparator is a perfect hash function for the hash-mechanism.
 // Two macrocells compare equal if and only if they point to the same 4 quadrants
 // (a == b) === !macrocell_lt (a, b) && !macrocell_lt (b, a)
 static int
-macrocell_lt (MacrocellId a, MacrocellId b)
+macrocell_cmp (const void *pa, const void *pb, void *cmp_arg)
 {
+  (void) cmp_arg;
+  MacrocellId a = *(const MacrocellId *) pa;
+  MacrocellId b = *(const MacrocellId *) pb;
   for (size_t i = 0; i < NB_QUADRANTS; i++)
-    if (a->quadrant[i] == b->quadrant[i])
-      continue;
-    else if (a->quadrant[i] < b->quadrant[i])
+    if (a->quadrant[i] < b->quadrant[i])
+      return -1;
+    else if (a->quadrant[i] > b->quadrant[i])
       return 1;
-    else                        //if (a->quadrant[i] > b->quadrant[i])
-      return 0;
 
   return 0;
 }
@@ -147,36 +150,47 @@ macrocell_set_population (MacrocellId m)
 }
 
 static int
-xypos_lt (XYPos a, XYPos b)
+xypos_cmp (const void *key_a, const void *key_b, void *arg)
 {
+  (void) arg;
+  XYPos a = *(const XYPos *) key_a;
+  XYPos b = *(const XYPos *) key_b;
   int dx = intbig_cmp (a.x, b.x);
   int dy = intbig_cmp (a.y, b.y);
-  return dy < 0 || (dy == 0 && dx < 0);
+  return dy < 0 ? -1 : dy > 0 ? 1 : dx < 0 ? -1 : dx > 0 ? 1 : 0;
 }
-
-#include "set_impl.h"
-// A position in a 2D space
-DECLARE_SET (XYPos);
-DEFINE_OPERATORS (XYPos);
-DEFINE_SET (XYPos);
 
 typedef struct
 {
-  unsigned int height;
+  size_t height;
   uintbig_t xmin, ymin, tbase;
 } SpaceTimeRegion;
 
-#include "set_impl.h"
-DECLARE_SET (SpaceTimeRegion);
-DEFINE_OPERATORS (SpaceTimeRegion);
-DEFINE_SET (SpaceTimeRegion);
+static int
+default_cmp (const unsigned char *pa, const unsigned char *pb, size_t size)
+{
+  for (size_t i = 0; i < size; i++)
+    if (pa[i] < pb[i])
+      return -1;                /* a < b */
+    else if (pa[i] > pb[i])
+      return 1;                 /* a < b */
+
+  return 0;                     /* a = b */
+}
+
+static int
+spr_cmp (const void *key_a, const void *key_b, void *arg)
+{
+  (void) arg;
+  return default_cmp (key_a, key_b, sizeof (SpaceTimeRegion));
+}
 
 #ifdef DEBUG
 static void
-show_overlapping (unsigned int height, uintbig_t tbase, uintbig_t instant, uintbig_t xmin, uintbig_t ymin, Window window)
+show_overlapping (size_t height, uintbig_t tbase, uintbig_t instant, uintbig_t xmin, uintbig_t ymin, Window window)
 {
-  uintbig_t size = uintbig_sl (ULL_TO_ULLL (1), height);
-  uintbig_t quarter_size = uintbig_sr (size, 2);
+  uintbig_t size = uintbig_shiftleft (ULL_TO_ULLL (1), height);
+  uintbig_t quarter_size = uintbig_shiftright (size, 2);
   intbig_t sxmin, sxmax, symin, symax, diff;
   diff = uintbig_sub (UINTBIG_MAX, INTBIG_MAX);
   sxmin = uintbig_sub (xmin, diff);
@@ -193,7 +207,7 @@ show_overlapping (unsigned int height, uintbig_t tbase, uintbig_t instant, uintb
 #endif
 
 static int
-time_overlap (unsigned int height, uintbig_t tbase, uintbig_t instant)
+time_overlap (size_t height, uintbig_t tbase, uintbig_t instant)
 {
   ASSERT (height);
   if (uintbig_cmp (instant, tbase) < 0)
@@ -206,7 +220,7 @@ time_overlap (unsigned int height, uintbig_t tbase, uintbig_t instant)
 }
 
 static int
-space_overlap (unsigned int height, uintbig_t xmin, uintbig_t ymin, Window window)
+space_overlap (size_t height, uintbig_t xmin, uintbig_t ymin, Window window)
 {
   uintbig_t wxmin = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), window.NWvertex.x);
   uintbig_t wxmax = uintbig_add (uintbig_sub (UINTBIG_MAX, INTBIG_MAX), window.SEvertex.x);
@@ -222,7 +236,7 @@ space_overlap (unsigned int height, uintbig_t xmin, uintbig_t ymin, Window windo
 }
 
 static uintbig_t
-macrocell_get_cells_in_window (MacrocellId m, unsigned int height, uintbig_t xmin, uintbig_t ymin, Window window, SET (XYPos) *cells)
+macrocell_get_cells_in_window (MacrocellId m, size_t height, uintbig_t xmin, uintbig_t ymin, Window window, map * /* XYPos */ cells)
 {
   if (!m)
     return UINTBIG_ZERO;
@@ -242,24 +256,19 @@ macrocell_get_cells_in_window (MacrocellId m, unsigned int height, uintbig_t xmi
   }
   else
   {
-    SET_ADD (cells, ((XYPos)
-                     {
-                     .x = (intbig_t) uintbig_sub (xmin, uintbig_sub (UINTBIG_MAX, INTBIG_MAX)),.y = (intbig_t) uintbig_sub (ymin, uintbig_sub (UINTBIG_MAX, INTBIG_MAX))}
-             ));
+    XYPos *xypos = malloc (sizeof (*xypos));
+    *xypos = (XYPos)
+    {
+    .x = (intbig_t) uintbig_sub (xmin, uintbig_sub (UINTBIG_MAX, INTBIG_MAX)),.y = (intbig_t) uintbig_sub (ymin, uintbig_sub (UINTBIG_MAX, INTBIG_MAX))};
+    map_insert_data (cells, xypos);
     ret = ULL_TO_ULLL (1);
   }
   PRINT ("Collected %'U cells in macrocell.\n", ret);
   return ret;
 }
 
-  // Declare the use of template for sets (ordered lists) of MacrocellId.
-#include "set_impl.h"
-DECLARE_SET (MacrocellId);
-DEFINE_OPERATORS (MacrocellId);
-DEFINE_SET (MacrocellId);
-
 static MacrocellId
-macrocell_fetch_pattern (MacrocellId m, SET (MacrocellId) *set)
+macrocell_fetch_pattern (MacrocellId m, map * /* MacrocellId */ set)
 {
   if (!m)
     return 0;
@@ -275,19 +284,19 @@ macrocell_fetch_pattern (MacrocellId m, SET (MacrocellId) *set)
   }
   else
   {
-    SNODE (MacrocellId) * node;
-    node = SET_FIND (set, m);
-    ASSERT (node);
-    if (*SNODE_KEY (node) != m)
+    MacrocellId *pm;
+    map_find_key (set, &m, MAP_GET_ONE, &pm, 0, 0);
+    ASSERT (pm);
+    if (*pm != m)
       free (m);
-    return *SNODE_KEY (node);
+    return *pm;
   }
 }
 
 // [GOSPER] "The hash mechanism prevents the recomputation of indistinguishable scenarios."
 //          "a macrocell is never created if one having the same quadrants already exists."
 static MacrocellId
-macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
+macrocell_patternify (MacrocellId m, map * /* MacrocellId */ set)
 {
   if (!m)
     return 0;
@@ -296,14 +305,14 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
     if (m->quadrant[q])
       empty = 0;
 
-  SNODE (MacrocellId) * node;
+  MacrocellId *pm;
   if (empty)
   {
     // If the macrocell m is an empty region, it can be forgotten.
     free (m);
     return OFF;
   }
-  else if ((node = SET_FIND (set, m)))
+  else if (map_find_key (set, &m, MAP_GET_ONE, &pm, 0, 0))
   {
     // [GOSPER] "When the algorithm tries to group four quadrants to form a pre-existing macro-cell, the hash
     //           mechanism notices the coincidence and returns the old cell instead of a new one. Most importantly,
@@ -311,12 +320,12 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
     // Aggregation:
     // Is there another identical (twin) macrocell at the same height ?
     // If the macrocell is not an empty region but is already registered in the set, it can be forgotten: forget m.
-    if (*SNODE_KEY (node) != m)
+    if (*pm != m)
     {
       free (m);                 // The previously created macrocell m has a twin, it is not needed anymore and is destroyed.
-      (*SNODE_KEY (node))->nb_instances = uintbig_add ((*SNODE_KEY (node))->nb_instances, ULL_TO_ULLL (1));     // The already existing pattern is used once more.
+      (*pm)->nb_instances = uintbig_add ((*pm)->nb_instances, ULL_TO_ULLL (1)); // The already existing pattern is used once more.
     }
-    return *SNODE_KEY (node);   // The previously created macrocell m is aggregated with a preexisting one.
+    return *pm;                 // The previously created macrocell m is aggregated with a preexisting one.
   }
   else                          // m is not anywhere else in the universe
   {
@@ -325,7 +334,9 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
     m->result = QUERY;          // Makes sure that an extraneous result is not registered.
     m->nb_instances = ULL_TO_ULLL (1);
     macrocell_set_population (m);
-    SET_ADD (set, m);           // register the macrocell in the ordered set.
+    pm = malloc (sizeof (*pm));
+    *pm = m;
+    map_insert_data (set, pm);  // register the macrocell in the ordered set.
     return m;
   }
 }
@@ -335,7 +346,7 @@ macrocell_patternify (MacrocellId m, SET (MacrocellId) *set)
 typedef struct sLevel Level;
 struct sLevel
 {
-  SET (MacrocellId) * macrocells;       // An ordered set of unique Macrocell references (defined as the address of the macrocells)
+  map * /* MacrocellId */ macrocells;   // An ordered set of unique Macrocell references (defined as the address of the macrocells)
   // [GOSPER] "This will usually require fewer macro-cells than you might think, due to two restrictions on when a macro-cell
   //           can be created. First, a macrocell is never created if one having the same quadrants already exists."
   //           This applies recursively to the quadrants. At the bottom of the recursion are the 2^0 by 2^0 (i.e. 1 by 1) cells,
@@ -346,20 +357,14 @@ struct sLevel
   //           small, and by infrequency of creation when they are large."
 };
 
-#include "list_impl.h"
-DECLARE_LIST (Level);
-DEFINE_OPERATORS (Level);
-DEFINE_LIST (Level);
-
 // ---------------------- Universes
 typedef struct sUniverse
 {
   unsigned int height;
   uintbig_t x0, y0;
   MacrocellId root;             // The macrocell at the top of the universe
-  /* *INDENT-OFF* */
-  LIST (Level) * listOfLevels;   // Register of macrocells at every level of the Universe.
-  /* *INDENT-ON* */
+  Level *listOfLevels;          // Register of macrocells at every level of the Universe.
+  size_t nbLevels;
   mc2x2_t RESULT4x4[NB_MC4X4];  // RESULT is a 2x2 macro-cell generated from a 4x4 macro-cells with rules B/S.
   neighbours_t S;               // Pattern for survival. A cell has 8 neighbours.
   neighbours_t B;               // Pattern for birth.
@@ -401,22 +406,16 @@ universe_reinitialize (Universe *pUniverse)
   neighbours_t S = pUniverse->S;
   if (pUniverse->listOfLevels)
   {
-    while (LIST_SIZE (pUniverse->listOfLevels))
+    for (; pUniverse->listOfLevels && pUniverse->nbLevels; pUniverse->nbLevels--)
     {
-      SET (MacrocellId) * s = LNODE_VALUE (LIST_LAST (pUniverse->listOfLevels))->macrocells;
-      while (SET_SIZE (s))
-      {
-        MacrocellId m = *SNODE_KEY (SET_LAST (s));
-        if (LIST_SIZE (pUniverse->listOfLevels) > 1)    // Leafs are static or allocated by the caller of set_cell and should not be free'd here.
-          free (m);
-        SET_REMOVE (s, SET_LAST (s));
-      }
-      SET_DESTROY (s);
-      LIST_REMOVE (pUniverse->listOfLevels, LIST_LAST (pUniverse->listOfLevels));
+      map * /* of MacrocellId */ s = pUniverse->listOfLevels[pUniverse->nbLevels - 1].macrocells;
+      map_traverse (s, MAP_REMOVE_ALL, pUniverse->nbLevels > 1 /* Leafs are static or allocated by the caller of set_cell and should not be free'd here. */ ? free : 0, 0, 0);
+      map_destroy (s);
     }
     ASSERT (pUniverse->listOfLevels);
-    LIST_DESTROY (pUniverse->listOfLevels);
+    free (pUniverse->listOfLevels);
     pUniverse->listOfLevels = 0;
+    pUniverse->nbLevels = 0;
   }
   universe_init (pUniverse);
   universe_set_rules (pUniverse, B, S);
@@ -466,12 +465,12 @@ universe_get_RESULT (Universe *pUniverse, MacrocellId m, unsigned int height)
   if (empty)
     return m->result = 0;
 
-  ASSERT (LIST_SIZE (pUniverse->listOfLevels) > height);
+  ASSERT (pUniverse->nbLevels > height);
   Level *l0 = 0;
   Level *l1 = 0;
   Level *l2 = 0;
 
-  l0 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, height));
+  l0 = &pUniverse->listOfLevels[height];
   ASSERT (l0 && l0->macrocells);
   ASSERT (m == macrocell_patternify (m, l0->macrocells));       // m should have been registered already.
   m = macrocell_patternify (m, l0->macrocells);
@@ -479,7 +478,7 @@ universe_get_RESULT (Universe *pUniverse, MacrocellId m, unsigned int height)
   if (m->result != QUERY)       // If the RESULT was already computed, return it.
     return m->result;
 
-  l1 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, height - 1));
+  l1 = &pUniverse->listOfLevels[height - 1];
   ASSERT (l1 && l1->macrocells);
   MacrocellId result = 0;
   if (height == 2)
@@ -721,7 +720,7 @@ universe_get_RESULT (Universe *pUniverse, MacrocellId m, unsigned int height)
     };
     /* *INDENT-ON* */
 
-    l2 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, height - 2));
+    l2 = &pUniverse->listOfLevels[height - 2];
     ASSERT (l2 && l2->macrocells);
 
     result = calloc (1, sizeof (*result));
@@ -825,12 +824,12 @@ universe_expand (Universe *pUniverse)
       newroot->quadrant[i]->population = pUniverse->root->quadrant[i]->population;
     }
 
-  ASSERT (LIST_SIZE (pUniverse->listOfLevels) >= pUniverse->height + 1);
-  Level *pl = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, pUniverse->height));
+  ASSERT (pUniverse->nbLevels >= pUniverse->height + 1);
+  Level *pl = &pUniverse->listOfLevels[pUniverse->height];
   ASSERT (pl && pl->macrocells);
-  SNODE (MacrocellId) * node = SET_FIND (pl->macrocells, pUniverse->root);
-  ASSERT (node && *SNODE_KEY (node) == pUniverse->root);
-  SET_REMOVE (pl->macrocells, node);
+  MacrocellId *pm;
+  map_find_key (pl->macrocells, &pUniverse->root, MAP_REMOVE_ONE, &pm, 0, 0);
+  ASSERT (pm && *pm == pUniverse->root);
   for (Quadrant i = 0; i < NB_QUADRANTS; i++)
     if (newroot->quadrant[i])
       newroot->quadrant[i] = macrocell_patternify (newroot->quadrant[i], pl->macrocells);
@@ -839,15 +838,16 @@ universe_expand (Universe *pUniverse)
   pUniverse->y0 = uintbig_sub (pUniverse->y0, uintbig_shiftleft (ULL_TO_ULLL (1), pUniverse->height - 1));
   pUniverse->height++;
   pUniverse->root = newroot;
-  if (LIST_SIZE (pUniverse->listOfLevels) == pUniverse->height)
+  if (pUniverse->nbLevels == pUniverse->height)
   {
     Level l = {
       0
     };
-    l.macrocells = SET_CREATE (MacrocellId, macrocell_lt);
-    LIST_APPEND (pUniverse->listOfLevels, l);
+    l.macrocells = map_create (0, macrocell_cmp, 0, 1) /* of MacrocellId */ ;
+    pUniverse->listOfLevels = realloc (pUniverse->listOfLevels, (++pUniverse->nbLevels) * (sizeof (pUniverse->listOfLevels)));
+    pUniverse->listOfLevels[pUniverse->nbLevels - 1] = l;
   }
-  pl = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, pUniverse->height));
+  pl = &pUniverse->listOfLevels[pUniverse->height];
   ASSERT (pl && pl->macrocells);
   pUniverse->root = macrocell_patternify (pUniverse->root, pl->macrocells);
 
@@ -896,20 +896,25 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     pUniverse->root->result = QUERY;    // Unneeded as height < 2
     pUniverse->root->population = ULL_TO_ULLL (1);
     ASSERT (!pUniverse->listOfLevels);
-    pUniverse->listOfLevels = LIST_CREATE (Level);
+    pUniverse->listOfLevels = 0;
+    pUniverse->nbLevels = 0;
     Level l0 = {
       0
     };
-    l0.macrocells = SET_CREATE (MacrocellId, macrocell_lt);
-    SET_ADD (l0.macrocells, leaf);
+    l0.macrocells = map_create (0, macrocell_cmp, 0, 1) /* of MacrocellId */ ;
+    MacrocellId *pm = malloc (sizeof (*pm));
+    *pm = leaf;
+    map_insert_data (l0.macrocells, pm);
     Level l1 = {
       0
     };
-    l1.macrocells = SET_CREATE (MacrocellId, macrocell_lt);
+    l1.macrocells = map_create (0, macrocell_cmp, 0, 1) /* of MacrocellId */ ;
     pUniverse->root = macrocell_patternify (pUniverse->root, l1.macrocells);    // Could return OFF
-    ASSERT (LIST_SIZE (pUniverse->listOfLevels) == 0);
-    LIST_APPEND (pUniverse->listOfLevels, l0);
-    LIST_APPEND (pUniverse->listOfLevels, l1);
+    ASSERT (pUniverse->listOfLevels == 0 && pUniverse->nbLevels == 0);
+    pUniverse->listOfLevels = malloc (2 * sizeof (*pUniverse->listOfLevels));
+    pUniverse->listOfLevels[0] = l0;
+    pUniverse->listOfLevels[1] = l1;
+    pUniverse->nbLevels = 2;
   }                             // if (!pUniverse->root)
   else                          // if (pUniverse->root)
   {
@@ -919,9 +924,9 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
       universe_expand (pUniverse);
 
     ASSERT (pUniverse->height > 0);
-    ASSERT (LIST_SIZE (pUniverse->listOfLevels) >= pUniverse->height + 1);
+    ASSERT (pUniverse->nbLevels >= pUniverse->height + 1);
     // Phase 2: Find the target leaf in the tree.
-    struct
+    struct                      // The local structure is HERE.
     {
       MacrocellId oldmc, newmc;
       Quadrant q;               // quadrant q of oldmc which is modified
@@ -968,10 +973,9 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
     {
       // Try to aggregate m at height h.
       // path has pUniverse->height elements (from level 1 (in path[0] to level pUniverse->height (in path[pUniverse->height - 1]) included)
-      ASSERT (LIST_SIZE (pUniverse->listOfLevels) > h);
-      Level *l = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, h));
+      ASSERT (pUniverse->nbLevels > h);
+      Level *l = &pUniverse->listOfLevels[h];
       ASSERT (l && l->macrocells);
-      SNODE (MacrocellId) * node;
       if (path[h - 1].oldmc)
       {
         ASSERT (!uintbig_is_zero (path[h - 1].oldmc->nb_instances));    // The olc macrocell should have been previously registered.
@@ -992,11 +996,10 @@ universe_cell_accessor (Universe *pUniverse, intbig_t sx, intbig_t sy, Macrocell
       // if oldmc is not in the universe anymore, it can be forgotten.
       if (path[h - 1].oldmc && uintbig_is_zero (path[h - 1].oldmc->nb_instances))
       {
-        node = SET_FIND (l->macrocells, path[h - 1].oldmc);
-        ASSERT (node);
-        ASSERT (SNODE_KEY (node));
-        free (*SNODE_KEY (node));
-        SET_REMOVE (l->macrocells, node);
+        MacrocellId *pm;
+        map_find_key (l->macrocells, &path[h - 1].oldmc, MAP_REMOVE_ONE, &pm, 0, 0);
+        ASSERT (pm);
+        free (pm);
       }
     }                           // for (size_t h = 1; h <= pUniverse->height; h++)
     free (path);
@@ -1043,7 +1046,7 @@ universe_set_BLE_rules (Universe *pUniverse, const char *rules)
   IF_NOT_THEN_RETURN (regcomp (&regrule, "B([[:digit:]]+)/S([[:digit:]]+)", REG_EXTENDED | REG_ICASE) == 0, "Invalid ERE");
   regmatch_t matchBS[3];
   IF_NOT_THEN_RETURN (regexec (&regrule, rules,
-                          sizeof (matchBS) / sizeof (*matchBS), matchBS, REG_NOTBOL | REG_NOTEOL) == 0, "Invalid format. Format 'Bnnn/Snnn' expected, n in [0 ; 8].");
+                               sizeof (matchBS) / sizeof (*matchBS), matchBS, REG_NOTBOL | REG_NOTEOL) == 0, "Invalid format. Format 'Bnnn/Snnn' expected, n in [0 ; 8].");
 
   neighbours_t B, S;
   B = S = 0;
@@ -1087,7 +1090,7 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
 
     regex_t regvar = { 0 };
     IF_NOT_THEN_RETURN (regcomp (&regvar, " *([[:alnum:]]+) *= *([^ ,]+) *,?", REG_EXTENDED | REG_ICASE) == 0,
-                   "Invalid ERE. Comma separated parameters of the form 'var=value' expected.");
+                        "Invalid ERE. Comma separated parameters of the form 'var=value' expected.");
     regmatch_t match[3];
     for (size_t offset = 0; regexec (&regvar, line + offset, sizeof (match) / sizeof (*match), match, REG_NOTBOL | REG_NOTEOL) == 0; offset += (size_t) match[0].rm_eo)
       if (!strncmp ("rule", line + offset + match[1].rm_so, (size_t) (match[1].rm_eo - match[1].rm_so)))
@@ -1151,13 +1154,14 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
 }
 
 static int
-print_cell (SNODE (XYPos) *n, void *arg)
+print_cell_and_remove (void *data, void *op_arg, int *remove)
 {
-  XYPos pos = *SNODE_KEY (n);
-  Explorer *explorer = arg;
+  XYPos pos = *(XYPos *) data;
+  Explorer *explorer = op_arg;
   if (explorer->extractor.foreach)
     explorer->extractor.foreach (explorer->universe, explorer->spacetime, pos.x, pos.y, explorer->extractor.context);
-  return EXIT_SUCCESS;
+  *remove = 1;
+  return 1;
 }
 
 // [GOSPER] "To SHOW the intersection of such a slab with the spacetime, teach the macro-cell classes to check
@@ -1167,7 +1171,7 @@ print_cell (SNODE (XYPos) *n, void *arg)
 //           space coordinates all 0."
 // [GOSPER] "SHOW is only logarithmic in the time coordinate."
 static MacrocellId
-universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset, Explorer *pE, SET (XYPos) *found_cells, SET (SpaceTimeRegion) *already_explored)
+universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset, Explorer *pE, map * /* XYPos */ found_cells, map * /* SpaceTimeRegion */ already_explored)
 {
   if (m == 0 || offset.height < 2)
     return 0;
@@ -1188,16 +1192,18 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
 
   // Exploring m comes to exploring 13 overlapping quadrants (recursively).
   // Therefore, we must avoid to explore twice the same spacetime region of the universe (this spares a LOT of CPU time.)
-  if (SET_FIND (already_explored, offset))
+  if (map_find_key (already_explored, &offset, 0, 0, 0, 0))
     return m->result;
   else
-    SET_ADD (already_explored, offset);
+  {
+    SpaceTimeRegion *pst = malloc (sizeof (*pst));
+    *pst = offset;
+    map_insert_data (already_explored, pst);
+  }
 
   // m should be registered already.
-  ASSERT (LIST_SIZE (pUniverse->listOfLevels) > offset.height &&
-          LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height)) &&
-          LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height))->macrocells
-          && m == macrocell_fetch_pattern (m, LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height))->macrocells));
+  ASSERT (pUniverse->nbLevels > offset.height &&
+          pUniverse->listOfLevels[offset.height].macrocells && m == macrocell_fetch_pattern (m, pUniverse->listOfLevels[offset.height].macrocells));
   ASSERT (m->result != QUERY);  // The RESULT should have been computed already.
 
   uintbig_t deltat = uintbig_sub (pE->spacetime.time.instant, offset.tbase);
@@ -1242,7 +1248,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
 
   // HERE, 0 < deltat < quarter_size
 
-  Level *l1 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height - 1));
+  Level *l1 = &pUniverse->listOfLevels[offset.height - 1];
   ASSERT (l1 && l1->macrocells);
 
   /* Macrocell m, of size S:
@@ -1411,7 +1417,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
         break;
     }
 
-    if (universe_show_RESULT (pUniverse, mtemp_5_9[u], r2, pE, found_cells, already_explored))  // height - 2
+    if (universe_show_RESULT (pUniverse, mtemp_5_9[u], r2, pE, found_cells, already_explored))  // height - 2, fills already_explored.
       for (Quadrant i = 0; i < NB_QUADRANTS; i++)
         *unit_5_9[u].cell[i] = mtemp_5_9[u]->result->quadrant[i];
   }
@@ -1475,7 +1481,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
     };
     /* *INDENT-ON* */
 
-  Level *l2 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, offset.height - 2));
+  Level *l2 = &pUniverse->listOfLevels[offset.height - 2];
   ASSERT (l2 && l2->macrocells);
 
   uintbig_t eighth_size = uintbig_shiftright (quarter_size, 1);
@@ -1513,7 +1519,7 @@ universe_show_RESULT (Universe *pUniverse, MacrocellId m, SpaceTimeRegion offset
       default:
         break;
     }
-    universe_show_RESULT (pUniverse, mtemp, r2, pE, found_cells, already_explored);     // height - 2
+    universe_show_RESULT (pUniverse, mtemp, r2, pE, found_cells, already_explored);     // height - 2, fills already_explored.
   }                             // for (Quadrant u = 0; u < NB_QUADRANTS; u++)
 
   /* Done: hresult H, half the size of m, is S/4 generations ahead of m:
@@ -1554,7 +1560,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
   if (explorer.extractor.preaction)
     explorer.extractor.preaction (pUniverse, explorer.spacetime, explorer.extractor.context);
 
-  SET (XYPos) * found_cells = SET_CREATE (XYPos, xypos_lt);
+  map *found_cells /* of XYPos */  = map_create (0, xypos_cmp, 0, 1);
 
   if (pUniverse->root == 0)
   {                             /* do nothing */
@@ -1563,7 +1569,7 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     macrocell_get_cells_in_window (pUniverse->root, pUniverse->height, pUniverse->x0, pUniverse->y0, explorer.spacetime.space.window, found_cells);
   else
   {
-    SET (SpaceTimeRegion) * already_explored = SET_CREATE (SpaceTimeRegion);
+    map * /* of SpaceTimeRegion */ already_explored = map_create (0, spr_cmp, 0, 1);
     unsigned int min_height = 2;
     for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_shiftright (t, 1))
       min_height++;
@@ -1603,9 +1609,9 @@ universe_explore (Universe *pUniverse, Explorer explorer)
     // uSE.se.se = m.se.nw
     // Step 2 : Compute the four RESULTs for each of theses universes.
 
-    Level *pl0 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, pUniverse->height));
+    Level *pl0 = &pUniverse->listOfLevels[pUniverse->height];
     ASSERT (pl0 && pl0->macrocells);
-    Level *pl1 = LNODE_VALUE (LIST_INDEX (pUniverse->listOfLevels, pUniverse->height - 1));
+    Level *pl1 = &pUniverse->listOfLevels[pUniverse->height - 1];
     ASSERT (pl1 && pl1->macrocells);
     MacrocellId shifted[NB_QUADRANTS];
     for (Quadrant u = 0; u < NB_QUADRANTS; u++)
@@ -1645,14 +1651,15 @@ universe_explore (Universe *pUniverse, Explorer explorer)
       PRINT ("Explore quadrant %i...\n", u + 1);
       SpaceTimeRegion r = {.xmin = xmin,.ymin = ymin,.tbase = UINTBIG_ZERO,.height = pUniverse->height
       };
-      universe_show_RESULT (pUniverse, shifted[u], r, &explorer, found_cells, already_explored);
+      universe_show_RESULT (pUniverse, shifted[u], r, &explorer, found_cells, already_explored);        // fills already_explored.
     }
-    SET_DESTROY (already_explored);
+    map_traverse (already_explored, MAP_REMOVE_ALL, free, 0, 0);
+    map_destroy (already_explored);
   }                             // if (!uintbig_is_zero (explorer.spacetime.time.instant))
 
-  uintbig_t population = ULL_TO_ULLL (SET_SIZE (found_cells));
-  SET_TRAVERSE (found_cells, print_cell, &explorer);
-  SET_DESTROY (found_cells);
+  uintbig_t population = ULL_TO_ULLL (map_size (found_cells));
+  map_traverse (found_cells, print_cell_and_remove, &explorer, 0, 0);
+  map_destroy (found_cells);
 
   if (explorer.extractor.postaction)
     explorer.extractor.postaction (pUniverse, explorer.spacetime, population, explorer.extractor.context);
