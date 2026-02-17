@@ -162,7 +162,7 @@ Macrocell
 
 To build it, type: `make`
 
-`hgolbi.c` makes use of template lists and sets, which files can be found [here](https://github.com/farhiongit/Ctemplates).
+`hgolbi.c` makes use of sets, which files can be found [here](https://github.com/farhiongit/minimaps).
 
 `hgolbi_example` accepts options in command line (see `Makefile` for an example):
 
