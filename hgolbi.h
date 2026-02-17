@@ -2,6 +2,7 @@
 #  define __HGOLBI_H__
 
 #  include "bitl.h"
+#  include <stdio.h>
 
 // Abstract data type Universe.
 struct sUniverse;
