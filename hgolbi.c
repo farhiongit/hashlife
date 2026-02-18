@@ -1087,10 +1087,17 @@ universe_RLE_readfile (Universe *pUniverse, FILE *f, intbig_t x0, intbig_t y0, i
   return nb;
 }
 
+typedef struct
+{
+  SpaceTime spacetime;
+  Extractor extractor;
+  Universe *universe;
+} Parc_args;
+
 static int
-print_cell_and_remove (void *data, void *op_arg, int *remove) {
+print_and_remove_cell (void *data, void *op_arg, int *remove) {
   XYPos pos = *(XYPos *)data;
-  Explorer *explorer = op_arg;
+  Parc_args *explorer = op_arg;
   if (explorer->extractor.foreach)
     explorer->extractor.foreach (explorer->universe, explorer->spacetime, pos.x, pos.y, explorer->extractor.context);
   *remove = 1;
@@ -1460,8 +1467,6 @@ universe_explore (Universe *pUniverse, Explorer explorer) {
     explorer.spacetime.space.window.SEvertex.y = INTBIG_MAX;
   }
 
-  explorer.universe = pUniverse;
-
   if (explorer.extractor.preaction)
     explorer.extractor.preaction (pUniverse, explorer.spacetime, explorer.extractor.context);
 
@@ -1556,8 +1561,9 @@ universe_explore (Universe *pUniverse, Explorer explorer) {
     map_destroy (already_explored);
   } // if (!uintbig_is_zero (explorer.spacetime.time.instant))
 
+  Parc_args args = { .spacetime = explorer.spacetime, .extractor = explorer.extractor, .universe = pUniverse };
   uintbig_t population = ULL_TO_ULLL (map_size (found_cells));
-  map_traverse (found_cells, print_cell_and_remove, &explorer, 0, 0);
+  map_traverse (found_cells, print_and_remove_cell, &args, 0, 0);
   map_destroy (found_cells);
 
   if (explorer.extractor.postaction)

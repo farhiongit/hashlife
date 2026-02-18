@@ -45,7 +45,6 @@ typedef struct
 {
   SpaceTime spacetime;
   Extractor extractor;
-  Universe *universe;           // Reserved, do not use.
 } Explorer;
 
 // Create a universe and return the pointer to it.
