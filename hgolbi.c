@@ -120,7 +120,7 @@ struct sMacrocell {
 // Two macrocells compare equal if and only if they point to the same 4 quadrants
 // (a == b) === !macrocell_lt (a, b) && !macrocell_lt (b, a)
 static int
-macrocell_cmp (const void *pa, const void *pb, void *cmp_arg) {
+macrocell_cmp (const void *pa, const void *pb, const void *cmp_arg) {
   (void)cmp_arg;
   MacrocellId a = *(const MacrocellId *)pa;
   MacrocellId b = *(const MacrocellId *)pb;
@@ -155,7 +155,7 @@ macrocell_set_population (MacrocellId m) {
 }
 
 static int
-xypos_cmp (const void *key_a, const void *key_b, void *arg) {
+xypos_cmp (const void *key_a, const void *key_b, const void *arg) {
   (void)arg;
   XYPos a = *(const XYPos *)key_a;
   XYPos b = *(const XYPos *)key_b;
@@ -172,23 +172,6 @@ typedef struct
   size_t height;
   uintbig_t xmin, ymin, tbase;
 } SpaceTimeRegion;
-
-static int
-default_cmp (const unsigned char *pa, const unsigned char *pb, size_t size) {
-  for (size_t i = 0; i < size; i++)
-    if (pa[i] < pb[i])
-      return -1;
-    else if (pa[i] > pb[i])
-      return 1;
-
-  return 0; /* a = b */
-}
-
-static int
-spr_cmp (const void *key_a, const void *key_b, void *arg) {
-  (void)arg;
-  return default_cmp (key_a, key_b, sizeof (SpaceTimeRegion));
-}
 
 #ifdef DEBUG
 static void
@@ -1476,7 +1459,8 @@ universe_explore (Universe *pUniverse, Explorer explorer) {
   } else if (uintbig_is_zero (explorer.spacetime.time.instant))
     macrocell_get_cells_in_window (pUniverse->root, pUniverse->height, pUniverse->x0, pUniverse->y0, explorer.spacetime.space.window, found_cells);
   else {
-    map * /* of SpaceTimeRegion */ already_explored = map_create (0, spr_cmp, 0, 1);
+    static const size_t str_size = sizeof (SpaceTimeRegion);
+    map * /* of SpaceTimeRegion */ already_explored = map_create (0, MAP_GENERIC_CMP, &str_size, 1);
     unsigned int min_height = 2;
     for (uintbig_t t = uintbig_sub (explorer.spacetime.time.instant, ULL_TO_ULLL (1)); !uintbig_is_zero (t); t = uintbig_shiftright (t, 1))
       min_height++;
