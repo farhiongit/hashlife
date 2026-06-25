@@ -1078,7 +1078,8 @@ typedef struct
 } Parc_args;
 
 static int
-print_and_remove_cell (void *data, void *op_arg, int *remove) {
+print_and_remove_cell (void *data, void *op_arg, int *remove, const void *context) {
+  (void)context;
   XYPos pos = *(XYPos *)data;
   Parc_args *explorer = op_arg;
   if (explorer->extractor.foreach)
